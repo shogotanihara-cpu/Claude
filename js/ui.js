@@ -1,0 +1,154 @@
+/* ─────────────────────────────────────────
+   ui.js — 日付ユーティリティと共通UI部品
+   ───────────────────────────────────────── */
+
+var UI = (function () {
+  'use strict';
+
+  var MIN = 60000, HOUR = 3600000, DAY = 86400000;
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+
+  /* ── date helpers ─────────────────────── */
+
+  function startOfDay(d) {
+    var x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x.getTime();
+  }
+
+  function addDays(ts, n) {
+    var x = new Date(ts);
+    x.setDate(x.getDate() + n);
+    return x.getTime();
+  }
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  /** epoch → "YYYY-MM-DD"（input[type=date] 用・ローカル時刻） */
+  function dateInputValue(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  /** epoch → "HH:MM"（input[type=time] 用） */
+  function timeInputValue(ts) {
+    var d = new Date(ts);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /** "YYYY-MM-DD" + "HH:MM" → epoch */
+  function parseDateTime(dateStr, timeStr) {
+    var dp = (dateStr || '').split('-');
+    var tp = (timeStr || '00:00').split(':');
+    var d = new Date(+dp[0], (+dp[1] || 1) - 1, +dp[2] || 1, +tp[0] || 0, +tp[1] || 0, 0, 0);
+    return d.getTime();
+  }
+
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function fmtDate(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日(' + WD[d.getDay()] + ')';
+  }
+
+  function fmtDateFull(ts) {
+    var d = new Date(ts);
+    var today = startOfDay(Date.now());
+    var day = startOfDay(ts);
+    var suffix = '';
+    if (day === today) suffix = '・今日';
+    else if (day === addDays(today, -1)) suffix = '・昨日';
+    else if (day === addDays(today, 1)) suffix = '・明日';
+    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() +
+           '(' + WD[d.getDay()] + ')' + suffix;
+  }
+
+  function fmtShortDate(ts) {
+    var d = new Date(ts);
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  /** ミリ秒 → "7時間30分" / "45分" */
+  function fmtDuration(ms) {
+    if (ms < 0) ms = 0;
+    var m = Math.round(ms / MIN);
+    var h = Math.floor(m / 60);
+    m = m % 60;
+    if (h && m) return h + '時間' + m + '分';
+    if (h) return h + '時間';
+    return m + '分';
+  }
+
+  /** ミリ秒 → "7.5h"（集計表示用） */
+  function fmtHours(ms) {
+    return (Math.round(ms / HOUR * 10) / 10) + 'h';
+  }
+
+  /* ── DOM helpers ──────────────────────── */
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  /** 背景色に対して読みやすい文字色を返す */
+  function textOn(hex) {
+    var c = hex.replace('#', '');
+    if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+    var r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#14171c' : '#ffffff';
+  }
+
+  /* ── sheet (bottom modal) ─────────────── */
+
+  var sheetEl, scrimEl, onCloseCb = null;
+
+  function openSheet(html, onMount, onClose) {
+    sheetEl = el('sheet');
+    scrimEl = el('scrim');
+    sheetEl.innerHTML = '<div class="sheet-grip"></div>' + html;
+    sheetEl.hidden = false;
+    scrimEl.hidden = false;
+    document.body.style.overflow = 'hidden';
+    onCloseCb = onClose || null;
+    if (onMount) onMount(sheetEl);
+  }
+
+  function closeSheet() {
+    if (!sheetEl) return;
+    sheetEl.hidden = true;
+    if (scrimEl) scrimEl.hidden = true;
+    sheetEl.innerHTML = '';
+    document.body.style.overflow = '';
+    if (onCloseCb) { var cb = onCloseCb; onCloseCb = null; cb(); }
+  }
+
+  /* ── toast ────────────────────────────── */
+
+  var toastTimer = null;
+
+  function toast(msg) {
+    var t = el('toast');
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 1800);
+  }
+
+  return {
+    MIN: MIN, HOUR: HOUR, DAY: DAY, WD: WD,
+    startOfDay: startOfDay, addDays: addDays, pad: pad,
+    dateInputValue: dateInputValue, timeInputValue: timeInputValue,
+    parseDateTime: parseDateTime,
+    fmtTime: fmtTime, fmtDate: fmtDate, fmtDateFull: fmtDateFull,
+    fmtShortDate: fmtShortDate, fmtDuration: fmtDuration, fmtHours: fmtHours,
+    esc: esc, el: el, textOn: textOn,
+    openSheet: openSheet, closeSheet: closeSheet, toast: toast
+  };
+})();
