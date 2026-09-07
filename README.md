@@ -22,9 +22,11 @@
 
 - 公開 URL: https://shogotanihara-cpu.github.io/Claude/
 
-Pages が未設定の場合はワークフローが自動で有効化します（`configure-pages` の `enablement`）。
-うまくいかないときは **Settings → Pages → Build and deployment → Source** を
-**「GitHub Actions」** に手動で変更してください。
+初回だけ、リポジトリ側で一度だけ設定が必要です。
+**Settings → Pages → Build and deployment → Source** を **「GitHub Actions」** に変更してください。
+
+（`configure-pages` の `enablement` による自動有効化は、GITHUB_TOKEN に Pages サイトの
+作成権限がないため使えません。）
 
 ## ローカルで動かす
 
