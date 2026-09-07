@@ -12,13 +12,15 @@
     settings: '設定'
   };
 
+  var KIND_LABEL = { span: '期間で記録', point: '点で記録', scale: '体調（1〜5）で記録' };
+
   var app = {
     tab: 'timeline',
     day: UI.startOfDay(Date.now()),
-    summaryMode: 'week',      // 'week' | 'month' | 'quarter'
-    summaryAnchor: Date.now(), // この日を含む週・月・3ヶ月を表示する
+    summaryMode: 'week',
+    summaryAnchor: Date.now(),
     query: '',
-    filters: []          // 絞り込み中のカテゴリID
+    filters: []
   };
 
   /** 現在の summaryMode / summaryAnchor から表示範囲を求める */
@@ -27,20 +29,21 @@
     var anchor = app.summaryAnchor;
 
     if (mode === 'week') {
-      var from = UI.startOfWeekMonday(anchor);
-      return { from: from, to: UI.addDays(from, 7), label: UI.fmtWeekLabel(from) };
+      var wFrom = UI.startOfWeekMonday(anchor);
+      return { from: wFrom, to: UI.addDays(wFrom, 7), label: UI.fmtWeekLabel(wFrom) };
     }
     if (mode === 'month') {
-      var from = UI.startOfMonth(anchor);
-      return { from: from, to: UI.addMonths(from, 1), label: UI.fmtMonthLabel(from) };
+      var mFrom = UI.startOfMonth(anchor);
+      return { from: mFrom, to: UI.addMonths(mFrom, 1), label: UI.fmtMonthLabel(mFrom) };
     }
-    // quarter: アンカーの月を含む直近3ヶ月（アンカー月 + その前2ヶ月）
     var lastMonth = UI.startOfMonth(anchor);
-    var from = UI.addMonths(lastMonth, -2);
-    return { from: from, to: UI.addMonths(lastMonth, 1), label: UI.fmtMonthRangeLabel(from, lastMonth) };
+    var qFrom = UI.addMonths(lastMonth, -2);
+    return {
+      from: qFrom, to: UI.addMonths(lastMonth, 1),
+      label: UI.fmtMonthRangeLabel(qFrom, lastMonth)
+    };
   }
 
-  /** 前後の週・月・3ヶ月に移動する（dir は -1 か 1） */
   function shiftSummaryAnchor(dir) {
     if (app.summaryMode === 'week') {
       app.summaryAnchor = UI.addDays(app.summaryAnchor, dir * 7);
@@ -70,8 +73,6 @@
   var pendingScroll = false;
   function scrollTimeline() { pendingScroll = true; render(); }
 
-  /* ═════════ 描画 ═════════ */
-
   function render() {
     if (app.tab === 'timeline') renderTimeline();
     else if (app.tab === 'summary') renderSummary();
@@ -79,10 +80,14 @@
     else renderSettings();
   }
 
+  /* ═════════ タイムライン ═════════ */
+
   function renderTimeline() {
     UI.el('dateText').textContent = UI.fmtDateFull(app.day);
     UI.el('datePicker').value = UI.dateInputValue(app.day);
 
+    renderQuickBar();
+    renderNudge();
     var result = Timeline.render(UI.el('timeline'), app.day, openEditor);
     renderDayStats(result);
 
@@ -92,12 +97,104 @@
     }
   }
 
+  /** ワンタップで記録するボタン列 */
+  function renderQuickBar() {
+    var box = UI.el('quickBar');
+    var cats = Store.quickCategories();
+
+    if (!cats.length) {
+      box.innerHTML = '';
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+
+    box.innerHTML = cats.map(function (c) {
+      if (c.kind === 'span') {
+        var run = Store.runningOf(c.id);
+        if (run) {
+          return '<button class="qb is-live" data-quick="' + c.id + '" style="background:' +
+            c.color + ';color:' + UI.textOn(c.color) + '">' +
+            '<span class="qb-dot"></span>' + UI.esc(c.name) +
+            '<span class="qb-meta">' + UI.fmtDuration(Date.now() - run.start) + '</span>' +
+            '</button>';
+        }
+        return '<button class="qb" data-quick="' + c.id + '">' +
+          '<span class="qb-dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
+          '<span class="qb-sign">開始</span></button>';
+      }
+      return '<button class="qb" data-quick="' + c.id + '">' +
+        '<span class="qb-dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
+        '<span class="qb-sign">' + (c.kind === 'scale' ? '記録' : '＋') + '</span></button>';
+    }).join('');
+
+    box.querySelectorAll('[data-quick]').forEach(function (b) {
+      b.addEventListener('click', function () { quickTap(b.dataset.quick); });
+    });
+  }
+
+  /** 記録し忘れているものがあれば、今日ぶんだけ知らせる */
+  function renderNudge() {
+    var box = UI.el('nudgeBox');
+    var today = UI.startOfDay(Date.now());
+
+    // 今日を見ているときだけ出す。閉じたらその日は出さない
+    if (app.day !== today || Notify.isDismissedToday()) { box.innerHTML = ''; return; }
+
+    var list = Notify.due();
+    if (!list.length) { box.innerHTML = ''; return; }
+
+    box.innerHTML = '<div class="nudge">' +
+      '<div class="nudge-main">' +
+        '<div class="nudge-title">まだ記録がありません</div>' +
+        '<div class="nudge-list">' + list.map(function (r) {
+          var name = r.catId ? Store.category(r.catId).name : '記録';
+          return '<span>' + r.time + ' ' + UI.esc(name) + '</span>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<button class="nudge-close" id="nudgeClose" aria-label="閉じる">×</button>' +
+    '</div>';
+
+    UI.el('nudgeClose').addEventListener('click', function () {
+      Notify.dismissToday();
+      renderNudge();
+    });
+  }
+
+  function quickTap(catId) {
+    var cat = Store.category(catId);
+    var now = Date.now();
+    app.day = UI.startOfDay(now);   // 記録した日を表示する
+
+    if (cat.kind === 'scale') { openScaleSheet(catId, now, null); return; }
+
+    if (cat.kind === 'span') {
+      var run = Store.runningOf(catId);
+      if (run) {
+        // 押し間違いで開始した直後の再タップは、記録を作らず取り消す
+        if (now - run.start < 60000) {
+          Store.removeLog(run.id);
+          UI.toast(cat.name + 'の開始を取り消しました');
+          return;
+        }
+        Store.updateLog(run.id, { end: now });
+        UI.toast(cat.name + 'を終了 ・ ' + UI.fmtDuration(now - run.start));
+      } else {
+        Store.addLog({ catId: catId, type: 'span', start: now, end: null, memo: '', scale: null });
+        UI.toast(cat.name + 'を開始しました');
+      }
+      return;
+    }
+
+    Store.addLog({ catId: catId, type: 'point', start: now, end: null, memo: '', scale: null });
+    UI.toast(cat.name + 'を記録しました');
+  }
+
   function renderDayStats(result) {
     var box = UI.el('dayStats');
     var runBox = UI.el('runningBox');
     var html = '';
 
-    /* 継続中のログ */
     Store.runningLogs().forEach(function (l) {
       var cat = Store.category(l.catId);
       html += '<div class="running-card" style="background:' + cat.color + ';color:' +
@@ -111,7 +208,6 @@
       '</div>';
     });
 
-    /* その日のカテゴリ別合計 */
     var totals = {};
     result.spans.forEach(function (s) {
       totals[s.log.catId] = (totals[s.log.catId] || 0) + (s.to - s.from);
@@ -123,12 +219,22 @@
           UI.esc(cat.name) + ' <b>' + UI.fmtDuration(totals[cid]) + '</b></div>';
       }).join('');
 
-    if (result.points.length) {
-      chips += '<div class="daystat">記録した出来事 <b>' + result.points.length + '件</b></div>';
+    // 体調はその日の平均を出す
+    var scales = result.points.filter(function (p) { return p.type === 'scale' && p.scale; });
+    if (scales.length) {
+      var sum = 0;
+      scales.forEach(function (p) { sum += p.scale; });
+      var avg = Math.round(sum / scales.length * 10) / 10;
+      var si = Store.scaleInfo(Math.round(sum / scales.length));
+      chips = '<div class="daystat"><span class="dot" style="background:' + si.color +
+        '"></span>体調 <b>' + avg + '</b></div>' + chips;
     }
-    if (!chips) {
-      chips = '<div class="daystat">この日の記録はまだありません</div>';
+
+    var pts = result.points.filter(function (p) { return p.type === 'point'; });
+    if (pts.length) {
+      chips += '<div class="daystat">記録した出来事 <b>' + pts.length + '件</b></div>';
     }
+    if (!chips) chips = '<div class="daystat">この日の記録はまだありません</div>';
 
     runBox.innerHTML = html;
     box.innerHTML = chips;
@@ -141,10 +247,17 @@
     });
   }
 
+  /* ═════════ サマリー ═════════ */
+
   function renderSummary() {
     var period = summaryPeriod();
     UI.el('summaryLabel').textContent = period.label;
     Summary.render(UI.el('summaryBody'), period.from, period.to);
+
+    var btn = UI.el('reportBtn');
+    if (btn) {
+      btn.onclick = function () { Report.open(period.from, period.to); };
+    }
   }
 
   /* ═════════ 検索 ═════════ */
@@ -193,12 +306,19 @@
         lastDay = day;
       }
       var cat = Store.category(l.catId);
-      var sub = l.type === 'point'
-        ? UI.fmtTime(l.start)
-        : UI.fmtTime(l.start) + '–' + (l.end ? UI.fmtTime(l.end) : '継続中') +
-          '・' + UI.fmtDuration((l.end || Date.now()) - l.start);
-      html += '<button class="row" data-open="' + l.id + '">' +
-        '<span class="dot" style="background:' + cat.color + '"></span>' +
+      var sub;
+      if (l.type === 'span') {
+        sub = UI.fmtTime(l.start) + '–' + (l.end ? UI.fmtTime(l.end) : '継続中') +
+              '・' + UI.fmtDuration((l.end || Date.now()) - l.start);
+      } else if (l.type === 'scale') {
+        sub = UI.fmtTime(l.start) + '・' + Store.scaleInfo(l.scale).label;
+      } else {
+        sub = UI.fmtTime(l.start);
+      }
+      var mark = (l.type === 'scale' && l.scale)
+        ? '<span class="dot" style="background:' + Store.scaleInfo(l.scale).color + '"></span>'
+        : '<span class="dot" style="background:' + cat.color + '"></span>';
+      html += '<button class="row" data-open="' + l.id + '">' + mark +
         '<div class="row-main">' +
           '<div class="row-title">' + UI.esc(cat.name) +
             (l.memo ? ' <span style="font-weight:400;color:var(--text-dim)">' + UI.esc(l.memo) + '</span>' : '') +
@@ -208,7 +328,7 @@
     });
     html += '</div>';
     if (results.length > shown.length) {
-      html += '<div class="hint" style="text-align:center;padding:0 12px 12px">' +
+      html += '<div class="hint" style="text-align:center;padding:0 14px 12px">' +
         '他 ' + (results.length - shown.length) + ' 件（絞り込んでください）</div>';
     }
 
@@ -224,53 +344,72 @@
     var cats = Store.categories().map(function (c) {
       return '<button class="row" data-editcat="' + c.id + '">' +
         '<span class="swatch" style="background:' + c.color + '"></span>' +
-        '<div class="row-main"><div class="row-title">' + UI.esc(c.name) + '</div>' +
-        '<div class="row-sub">' + (c.kind === 'point' ? '点で記録' : '期間で記録') +
-        '・' + Store.categoryUsage(c.id) + '件</div></div>' +
+        '<div class="row-main"><div class="row-title">' + UI.esc(c.name) +
+          (c.quick ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">ワンタップ</span>' : '') +
+        '</div>' +
+        '<div class="row-sub">' + KIND_LABEL[c.kind] + '・' + Store.categoryUsage(c.id) + '件</div></div>' +
         '<span style="color:var(--text-faint)">›</span></button>';
     }).join('');
 
     UI.el('settingsBody').innerHTML =
       '<div class="card">' +
         '<div class="card-title">カテゴリ</div>' + cats +
-        '<div class="btn-row" style="margin-top:12px">' +
-          '<button class="btn btn-sub" id="addCatBtn">カテゴリを追加</button>' +
-        '</div>' +
+        '<div class="btn-row"><button class="btn btn-sub" id="addCatBtn">カテゴリを追加</button></div>' +
+        '<p class="hint" style="margin-top:12px">「ワンタップ」にしたカテゴリは、タイムラインの上部に出て1回のタップで記録できます。</p>' +
       '</div>' +
+
+      reminderCardHTML() +
 
       '<div class="card">' +
         '<div class="card-title">データ</div>' +
         '<p class="hint">記録はこの端末のブラウザ内だけに保存されます。' +
-        '機種変更やブラウザのデータ削除で消えるため、ときどきバックアップを保存してください。</p>' +
-        '<div class="btn-row" style="margin-top:12px">' +
-          '<button class="btn btn-sub" id="backupBtn">バックアップを保存</button>' +
+        '機種変更やブラウザのデータ削除で消えるため、ときどきバックアップを保存してください。' +
+        'バックアップのファイルは、新しい端末で「復元」すればそのまま引き継げます。</p>' +
+        '<div class="btn-row">' +
+          '<button class="btn btn-sub" id="backupBtn">バックアップ</button>' +
           '<button class="btn btn-sub" id="restoreBtn">復元</button>' +
         '</div>' +
         '<input type="file" id="restoreFile" accept="application/json,.json" hidden>' +
+        '<div class="btn-row"><button class="btn btn-sub" id="csvBtn">CSVで書き出す</button></div>' +
+        '<p class="hint" style="margin-top:10px">CSVは表計算ソフトで開けます。' +
+        'バックアップ（JSON）と違い、復元には使えません。</p>' +
         '<div class="btn-row"><button class="btn btn-danger" id="clearBtn">すべての記録を削除</button></div>' +
       '</div>' +
 
       '<div class="card">' +
         '<div class="card-title">使い方</div>' +
         '<p class="hint">' +
-        '・＋ボタンから記録を追加します。<br>' +
-        '・「期間」は睡眠や仕事など始まりと終わりがあるもの、「点」は服薬などその瞬間の出来事に使います。<br>' +
+        '・上部のボタンで、睡眠の開始／終了、服薬、体調をワンタップで記録できます。<br>' +
+        '・「期間」は睡眠のように長さがあるもの、「点」は服薬のようにその瞬間の記録、' +
+        '「体調」は1〜5で今の状態を残すときに使います。<br>' +
         '・終了時刻を空にすると「継続中」として記録され、あとから終了できます。<br>' +
         '・終了時刻が開始より前のときは、日をまたいだものとして扱います（例 23:00→07:00）。<br>' +
-        '・ブラウザの共有メニューから「ホーム画面に追加」すると、アプリのように起動できます。' +
+        '・サマリーの「受診用レポート」から、期間をまとめた1枚を印刷・PDF保存できます。' +
         '</p>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title">このアプリについて</div>' +
+        '<p class="hint">記録の保存と表示のみを行います。診断や治療の判断は行いません。' +
+        '体調の変化が気になるときは、記録を持って医療機関にご相談ください。</p>' +
       '</div>';
 
     UI.el('addCatBtn').addEventListener('click', function () { openCategoryEditor(null); });
     UI.el('settingsBody').querySelectorAll('[data-editcat]').forEach(function (b) {
       b.addEventListener('click', function () { openCategoryEditor(b.dataset.editcat); });
     });
+    bindReminderCard();
+
+    UI.el('csvBtn').addEventListener('click', function () {
+      Exporter.downloadCSV();
+      UI.toast('CSVを書き出しました');
+    });
 
     UI.el('backupBtn').addEventListener('click', function () {
       var blob = new Blob([Store.exportJSON()], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'actionlog-' + UI.dateInputValue(Date.now()) + '.json';
+      a.download = 'log-' + UI.dateInputValue(Date.now()) + '.json';
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     });
@@ -282,12 +421,8 @@
       if (!confirm('現在の記録をバックアップの内容で置き換えます。よろしいですか?')) return;
       var reader = new FileReader();
       reader.onload = function () {
-        try {
-          Store.importJSON(reader.result);
-          UI.toast('復元しました');
-        } catch (err) {
-          alert('復元できませんでした: ' + err.message);
-        }
+        try { Store.importJSON(reader.result); UI.toast('復元しました'); }
+        catch (err) { alert('復元できませんでした: ' + err.message); }
       };
       reader.readAsText(file);
     });
@@ -299,18 +434,194 @@
     });
   }
 
+  /* ═════════ リマインダー ═════════ */
+
+  function reminderCardHTML() {
+    var list = Store.reminders();
+    var rows = list.length
+      ? list.map(function (r) {
+          var name = r.catId ? Store.category(r.catId).name : 'すべての記録';
+          return '<button class="row" data-editrem="' + r.id + '">' +
+            '<span class="row-val" style="width:52px">' + r.time + '</span>' +
+            '<div class="row-main"><div class="row-title">' + UI.esc(name) + '</div>' +
+            '<div class="row-sub">この時刻までに記録がなければ知らせます</div></div>' +
+            '<span style="color:var(--text-faint)">›</span></button>';
+        }).join('')
+      : '<p class="hint">まだ設定されていません。</p>';
+
+    var perm = Notify.permission();
+    var permRow = '';
+    if (list.length) {
+      if (perm === 'granted') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'ブラウザ通知は<b>オン</b>です。ただしアプリを閉じている間は鳴りません。' +
+          '確実に知らせてほしい場合は、下のボタンでカレンダーに登録してください。</p>';
+      } else if (perm === 'unsupported') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'この環境ではブラウザ通知が使えません。カレンダーに登録してお使いください。</p>';
+      } else if (perm === 'denied') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'ブラウザ通知はブロックされています。カレンダーに登録してお使いください。</p>';
+      } else {
+        permRow = '<div class="btn-row"><button class="btn btn-sub" id="permBtn">ブラウザ通知を許可する</button></div>';
+      }
+    }
+
+    return '<div class="card">' +
+      '<div class="card-title">リマインダー</div>' + rows +
+      '<div class="btn-row"><button class="btn btn-sub" id="addRemBtn">リマインダーを追加</button></div>' +
+      permRow +
+      (list.length
+        ? '<div class="btn-row"><button class="btn btn-sub" id="icsBtn">カレンダーに登録</button></div>' +
+          '<p class="hint" style="margin-top:10px">' +
+          'カレンダーに登録すると、アプリを閉じていても端末の標準アプリが毎日知らせてくれます。' +
+          'iPhone で確実に知らせてほしい場合はこちらをお使いください。</p>'
+        : '') +
+      '</div>';
+  }
+
+  function openReminderEditor(id) {
+    var rem = null;
+    if (id) {
+      Store.reminders().forEach(function (r) { if (r.id === id) rem = r; });
+    }
+    var cats = Store.categories();
+
+    var opts = '<option value="">すべての記録</option>' + cats.map(function (c) {
+      return '<option value="' + c.id + '"' +
+        (rem && rem.catId === c.id ? ' selected' : '') + '>' + UI.esc(c.name) + '</option>';
+    }).join('');
+
+    UI.openSheet(
+      '<h2>' + (rem ? 'リマインダーを編集' : 'リマインダーを追加') + '</h2>' +
+      '<div class="field"><label>時刻</label>' +
+        '<input type="time" id="rTime" value="' + (rem ? rem.time : '21:00') + '"></div>' +
+      '<div class="field"><label>対象</label>' +
+        '<select id="rCat">' + opts + '</select>' +
+        '<p class="hint" style="margin-top:8px">選んだカテゴリの記録が、その日まだ1件もないときに知らせます。</p>' +
+      '</div>' +
+      '<button class="btn" id="rSave">保存</button>' +
+      (rem ? '<div class="btn-row"><button class="btn btn-danger" id="rDel">削除</button></div>' : '') +
+      '<div class="btn-row"><button class="btn btn-sub" id="rCancel">キャンセル</button></div>',
+      function (root) {
+        root.querySelector('#rSave').addEventListener('click', function () {
+          var time = root.querySelector('#rTime').value;
+          if (!time) { alert('時刻を入力してください。'); return; }
+          var catId = root.querySelector('#rCat').value || null;
+          if (rem) Store.updateReminder(rem.id, { time: time, catId: catId });
+          else Store.addReminder(time, catId);
+          Notify.schedule();
+          UI.toast('保存しました');
+          UI.closeSheet();
+        });
+        if (rem) {
+          root.querySelector('#rDel').addEventListener('click', function () {
+            Store.removeReminder(rem.id);
+            Notify.schedule();
+            UI.toast('削除しました');
+            UI.closeSheet();
+          });
+        }
+        root.querySelector('#rCancel').addEventListener('click', UI.closeSheet);
+      }
+    );
+  }
+
+  function bindReminderCard() {
+    var body = UI.el('settingsBody');
+
+    body.querySelectorAll('[data-editrem]').forEach(function (b) {
+      b.addEventListener('click', function () { openReminderEditor(b.dataset.editrem); });
+    });
+    UI.el('addRemBtn').addEventListener('click', function () { openReminderEditor(null); });
+
+    var permBtn = UI.el('permBtn');
+    if (permBtn) {
+      permBtn.addEventListener('click', function () {
+        Notify.request(function (res) {
+          if (res === 'granted') { Notify.schedule(); UI.toast('通知を許可しました'); }
+          else UI.toast('通知は許可されませんでした');
+          renderSettings();
+        });
+      });
+    }
+
+    var icsBtn = UI.el('icsBtn');
+    if (icsBtn) {
+      icsBtn.addEventListener('click', function () {
+        Exporter.downloadICS();
+        UI.toast('カレンダー用のファイルを書き出しました');
+      });
+    }
+  }
+
+  /* ═════════ 体調の記録（ワンタップからの近道） ═════════ */
+
+  function scaleOptionsHTML() {
+    return Store.SCALE.map(function (s) {
+      return '<button class="sp" data-scale="' + s.v + '">' +
+        '<span class="sp-mark"></span>' +
+        '<span class="sp-label">' + s.v + '<br>' + UI.esc(s.label) + '</span></button>';
+    }).join('');
+  }
+
+  /** スケール選択の見た目を塗り直す。色は JS 側で明示的に当てる */
+  function paintScale(root, sel) {
+    root.querySelectorAll('[data-scale]').forEach(function (b) {
+      var v = +b.dataset.scale;
+      var info = Store.scaleInfo(v);
+      var on = (v === sel);
+      b.classList.toggle('is-on', on);
+      b.style.background = on ? info.color : '';
+      b.style.borderColor = on ? 'transparent' : '';
+      b.querySelector('.sp-mark').style.borderColor = on ? 'transparent' : info.color;
+      b.querySelector('.sp-mark').style.background = on ? 'rgba(255,255,255,.92)' : '';
+      b.querySelector('.sp-label').style.color = on ? '#fff' : '';
+    });
+  }
+
+  function openScaleSheet(catId, ts, log) {
+    var cat = Store.category(catId);
+
+    UI.openSheet(
+      '<h2>' + UI.esc(cat.name) + 'を記録</h2>' +
+      '<div class="field"><label>いまの状態</label>' +
+        '<div class="scalepick" id="spRow">' + scaleOptionsHTML() + '</div></div>' +
+      '<div class="field"><label>メモ</label>' +
+        '<textarea id="spMemo" placeholder="任意">' + UI.esc(log ? log.memo : '') + '</textarea></div>' +
+      '<button class="btn" id="spSave">保存</button>' +
+      '<div class="btn-row"><button class="btn btn-sub" id="spCancel">キャンセル</button></div>',
+      function (root) {
+        var sel = log ? log.scale : null;
+        paintScale(root, sel);
+        root.querySelectorAll('[data-scale]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            sel = +b.dataset.scale;
+            paintScale(root, sel);
+          });
+        });
+
+        root.querySelector('#spSave').addEventListener('click', function () {
+          if (!sel) { alert('状態を選んでください。'); return; }
+          var memo = root.querySelector('#spMemo').value.trim();
+          app.day = UI.startOfDay(ts);
+          if (log) Store.updateLog(log.id, { scale: sel, memo: memo });
+          else Store.addLog({ catId: catId, type: 'scale', start: ts, end: null, memo: memo, scale: sel });
+          UI.toast('記録しました');
+          UI.closeSheet();
+        });
+        root.querySelector('#spCancel').addEventListener('click', UI.closeSheet);
+      }
+    );
+  }
+
   /* ═════════ 記録の追加・編集 ═════════ */
 
-  /** 直近に使ったカテゴリを既定値にする（なければ先頭） */
   function lastUsedCatId(cats) {
     var logs = Store.logs();
     var latest = null;
-    logs.forEach(function (l) {
-      if (!latest || l.start > latest.start) latest = l;
-    });
-    if (latest && Store.categories().some(function (c) { return c.id === latest.catId; })) {
-      return latest.catId;
-    }
+    logs.forEach(function (l) { if (!latest || l.start > latest.start) latest = l; });
+    if (latest && cats.some(function (c) { return c.id === latest.catId; })) return latest.catId;
     return cats[0] && cats[0].id;
   }
 
@@ -320,8 +631,8 @@
     var now = Date.now();
     var isToday = UI.startOfDay(now) === app.day;
 
-    var type = log ? log.type : 'span';
     var catId = log ? log.catId : lastUsedCatId(cats);
+    var type = log ? log.type : Store.category(catId).kind;
     var start = log ? log.start : (isToday ? now : app.day + 9 * UI.HOUR);
     var end = log ? log.end : null;
     var open = log ? (log.type === 'span' && !log.end) : isToday;
@@ -331,8 +642,9 @@
 
       '<div class="field"><label>種類</label>' +
         '<div class="seg" style="margin:0">' +
-          '<button class="seg-btn' + (type === 'span' ? ' is-on' : '') + '" data-type="span">期間</button>' +
-          '<button class="seg-btn' + (type === 'point' ? ' is-on' : '') + '" data-type="point">点</button>' +
+          '<button class="seg-btn" data-type="span">期間</button>' +
+          '<button class="seg-btn" data-type="point">点</button>' +
+          '<button class="seg-btn" data-type="scale">体調</button>' +
         '</div>' +
       '</div>' +
 
@@ -340,9 +652,11 @@
         '<div class="chiprow" id="catChips" style="padding:0"></div>' +
       '</div>' +
 
+      '<div class="field" id="scaleField"><label>状態</label>' +
+        '<div class="scalepick" id="spRow">' + scaleOptionsHTML() + '</div></div>' +
+
       '<div class="field"><label>日付</label>' +
-        '<input type="date" id="fDate" value="' + UI.dateInputValue(start) + '">' +
-      '</div>' +
+        '<input type="date" id="fDate" value="' + UI.dateInputValue(start) + '"></div>' +
 
       '<div class="field-2">' +
         '<div class="field"><label id="lblStart">開始</label>' +
@@ -353,19 +667,17 @@
 
       '<div class="field" id="openField">' +
         '<label class="check"><input type="checkbox" id="fOpen"' + (open ? ' checked' : '') + '>' +
-        '終了時刻はあとで入力する（継続中）</label>' +
-      '</div>' +
+        '終了時刻はあとで入力する（継続中）</label></div>' +
 
       '<div class="field"><label>メモ</label>' +
-        '<textarea id="fMemo" placeholder="任意">' + UI.esc(log ? log.memo : '') + '</textarea>' +
-      '</div>' +
+        '<textarea id="fMemo" placeholder="任意">' + UI.esc(log ? log.memo : '') + '</textarea></div>' +
 
       '<button class="btn" id="saveBtn">保存</button>' +
       (log ? '<div class="btn-row"><button class="btn btn-danger" id="delBtn">削除</button></div>' : '') +
       '<div class="btn-row"><button class="btn btn-sub" id="cancelBtn">キャンセル</button></div>';
 
     UI.openSheet(html, function (root) {
-      var cur = { type: type, catId: catId };
+      var cur = { type: type, catId: catId, scale: log ? log.scale : null };
 
       function paintChips() {
         root.querySelector('#catChips').innerHTML = cats.map(function (c) {
@@ -377,7 +689,6 @@
         root.querySelectorAll('#catChips [data-cat]').forEach(function (b) {
           b.addEventListener('click', function () {
             cur.catId = b.dataset.cat;
-            // カテゴリの既定の記録方法に合わせて種類も切り替える
             if (!log) setType(Store.category(cur.catId).kind);
             paintChips();
           });
@@ -389,17 +700,24 @@
         root.querySelectorAll('[data-type]').forEach(function (b) {
           b.classList.toggle('is-on', b.dataset.type === t);
         });
-        var isSpan = (t === 'span');
-        root.querySelector('#endField').style.display = isSpan ? '' : 'none';
-        root.querySelector('#openField').style.display = isSpan ? '' : 'none';
-        root.querySelector('#lblStart').textContent = isSpan ? '開始' : '時刻';
+        root.querySelector('#endField').style.display = (t === 'span') ? '' : 'none';
+        root.querySelector('#openField').style.display = (t === 'span') ? '' : 'none';
+        root.querySelector('#scaleField').style.display = (t === 'scale') ? '' : 'none';
+        root.querySelector('#lblStart').textContent = (t === 'span') ? '開始' : '時刻';
       }
 
       paintChips();
       setType(cur.type);
+      paintScale(root, cur.scale);
 
       root.querySelectorAll('[data-type]').forEach(function (b) {
         b.addEventListener('click', function () { setType(b.dataset.type); });
+      });
+      root.querySelectorAll('[data-scale]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          cur.scale = +b.dataset.scale;
+          paintScale(root, cur.scale);
+        });
       });
 
       root.querySelector('#fOpen').addEventListener('change', function () {
@@ -418,19 +736,20 @@
           endTs = UI.parseDateTime(dateStr, endStr);
           if (endTs <= startTs) endTs += UI.DAY;   // 日をまたぐ記録
         }
+        if (cur.type === 'scale' && !cur.scale) { alert('状態を選んでください。'); return; }
 
         var payload = {
           catId: cur.catId,
           type: cur.type,
           start: startTs,
           end: cur.type === 'span' ? endTs : null,
+          scale: cur.type === 'scale' ? cur.scale : null,
           memo: root.querySelector('#fMemo').value.trim()
         };
 
+        app.day = UI.startOfDay(startTs);
         if (log) { Store.updateLog(log.id, payload); UI.toast('保存しました'); }
         else { Store.addLog(payload); UI.toast('記録しました'); }
-
-        app.day = UI.startOfDay(startTs);
         UI.closeSheet();
       });
 
@@ -449,7 +768,8 @@
   /* ═════════ カテゴリの編集 ═════════ */
 
   function openCategoryEditor(id) {
-    var cat = id ? Store.category(id) : { name: '', color: Store.PALETTE[0], kind: 'span' };
+    var cat = id ? Store.category(id)
+                 : { name: '', color: Store.PALETTE[0], kind: 'span', quick: false };
 
     var colors = Store.PALETTE.map(function (c) {
       return '<button class="colorpick' + (c === cat.color ? ' is-on' : '') +
@@ -459,20 +779,40 @@
     var html =
       '<h2>' + (id ? 'カテゴリを編集' : 'カテゴリを追加') + '</h2>' +
       '<div class="field"><label>名前</label>' +
-        '<input type="text" id="cName" value="' + UI.esc(cat.name) + '" placeholder="例: 読書"></div>' +
+        '<input type="text" id="cName" value="' + UI.esc(cat.name) + '" placeholder="例: 頭痛"></div>' +
       '<div class="field"><label>色</label><div class="colorgrid" id="cColors">' + colors + '</div></div>' +
-      '<div class="field"><label>既定の記録方法</label>' +
+      '<div class="field"><label>記録の方法</label>' +
         '<div class="seg" style="margin:0">' +
-          '<button class="seg-btn' + (cat.kind === 'span' ? ' is-on' : '') + '" data-kind="span">期間</button>' +
-          '<button class="seg-btn' + (cat.kind === 'point' ? ' is-on' : '') + '" data-kind="point">点</button>' +
+          '<button class="seg-btn" data-kind="span">期間</button>' +
+          '<button class="seg-btn" data-kind="point">点</button>' +
+          '<button class="seg-btn" data-kind="scale">体調</button>' +
         '</div>' +
+        '<p class="hint" style="margin-top:8px" id="kindHint"></p>' +
       '</div>' +
+      '<div class="field">' +
+        '<label class="check"><input type="checkbox" id="cQuick"' + (cat.quick ? ' checked' : '') + '>' +
+        'タイムライン上部のワンタップ記録に出す</label></div>' +
       '<button class="btn" id="cSave">保存</button>' +
       (id ? '<div class="btn-row"><button class="btn btn-danger" id="cDel">削除</button></div>' : '') +
       '<div class="btn-row"><button class="btn btn-sub" id="cCancel">キャンセル</button></div>';
 
     UI.openSheet(html, function (root) {
       var cur = { color: cat.color, kind: cat.kind };
+
+      var HINTS = {
+        span: '睡眠のように、始まりと終わりがあるもの。ワンタップで開始／終了できます。',
+        point: '服薬のように、その瞬間を残すもの。ワンタップで1件記録します。',
+        scale: '体調のように、そのときの状態を1〜5で残すもの。'
+      };
+
+      function setKind(k) {
+        cur.kind = k;
+        root.querySelectorAll('[data-kind]').forEach(function (b) {
+          b.classList.toggle('is-on', b.dataset.kind === k);
+        });
+        root.querySelector('#kindHint').textContent = HINTS[k];
+      }
+      setKind(cur.kind);
 
       root.querySelectorAll('[data-color]').forEach(function (b) {
         b.addEventListener('click', function () {
@@ -483,19 +823,15 @@
         });
       });
       root.querySelectorAll('[data-kind]').forEach(function (b) {
-        b.addEventListener('click', function () {
-          cur.kind = b.dataset.kind;
-          root.querySelectorAll('[data-kind]').forEach(function (o) {
-            o.classList.toggle('is-on', o === b);
-          });
-        });
+        b.addEventListener('click', function () { setKind(b.dataset.kind); });
       });
 
       root.querySelector('#cSave').addEventListener('click', function () {
         var name = root.querySelector('#cName').value.trim();
         if (!name) { alert('名前を入力してください。'); return; }
-        if (id) Store.updateCategory(id, { name: name, color: cur.color, kind: cur.kind });
-        else Store.addCategory(name, cur.color, cur.kind);
+        var quick = root.querySelector('#cQuick').checked;
+        if (id) Store.updateCategory(id, { name: name, color: cur.color, kind: cur.kind, quick: quick });
+        else Store.addCategory(name, cur.color, cur.kind, quick);
         UI.toast('保存しました');
         UI.closeSheet();
       });
@@ -548,12 +884,8 @@
       renderSummary();
     });
 
-    UI.el('summaryPrev').addEventListener('click', function () {
-      shiftSummaryAnchor(-1); renderSummary();
-    });
-    UI.el('summaryNext').addEventListener('click', function () {
-      shiftSummaryAnchor(1); renderSummary();
-    });
+    UI.el('summaryPrev').addEventListener('click', function () { shiftSummaryAnchor(-1); renderSummary(); });
+    UI.el('summaryNext').addEventListener('click', function () { shiftSummaryAnchor(1); renderSummary(); });
     UI.el('summaryToday').addEventListener('click', function () {
       app.summaryAnchor = Date.now(); renderSummary();
     });
@@ -579,7 +911,7 @@
 
     Store.onChange(render);
 
-    // 継続中の表示を1分ごとに更新
+    // 記録中の経過時間を1分ごとに更新
     setInterval(function () {
       if (app.tab === 'timeline' && Store.runningLogs().length) renderTimeline();
     }, 60000);
@@ -588,5 +920,6 @@
   document.addEventListener('DOMContentLoaded', function () {
     bind();
     setTab('timeline');
+    Notify.schedule();
   });
 })();

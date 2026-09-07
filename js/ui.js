@@ -135,6 +135,22 @@ var UI = (function () {
     return (Math.round(ms / HOUR * 10) / 10) + 'h';
   }
 
+  /** ミリ秒 → "7<small>時間</small>40<small>分</small>"。数字を大きく見せたい箇所用（HTMLを返す） */
+  function fmtDurationHTML(ms) {
+    if (ms < 0 || !isFinite(ms)) ms = 0;
+    var m = Math.round(ms / MIN);
+    var h = Math.floor(m / 60);
+    m = m % 60;
+    return h + '<small>時間</small>' + pad(m) + '<small>分</small>';
+  }
+
+  /** epoch → "2026年9月7日(月)"。今日/昨日の付加をしない、書類向けの表記 */
+  function fmtDateFullPlain(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() +
+           '日(' + WD[d.getDay()] + ')';
+  }
+
   /* ── DOM helpers ──────────────────────── */
 
   function esc(s) {
@@ -221,6 +237,20 @@ var UI = (function () {
     sheetEl.addEventListener('touchcancel', endDrag);
   }
 
+  /* ── ファイルの書き出し ───────────────── */
+
+  function download(filename, text, mime) {
+    var blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   /* ── toast ────────────────────────────── */
 
   var toastTimer = null;
@@ -241,8 +271,9 @@ var UI = (function () {
     parseDateTime: parseDateTime,
     fmtTime: fmtTime, fmtDate: fmtDate, fmtDateFull: fmtDateFull,
     fmtShortDate: fmtShortDate, fmtDuration: fmtDuration, fmtHours: fmtHours,
+    fmtDurationHTML: fmtDurationHTML, fmtDateFullPlain: fmtDateFullPlain,
     fmtWeekLabel: fmtWeekLabel, fmtMonthLabel: fmtMonthLabel, fmtMonthRangeLabel: fmtMonthRangeLabel,
-    esc: esc, el: el, textOn: textOn,
+    esc: esc, el: el, textOn: textOn, download: download,
     openSheet: openSheet, closeSheet: closeSheet, toast: toast
   };
 })();

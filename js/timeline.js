@@ -9,7 +9,7 @@ var Timeline = (function () {
   var MIN_BLOCK_H = 16;     // ブロックの最小高さ
   var SHORT_BLOCK_H = 34;   // これ未満は1行表示に切り替え
   var SPAN_AREA = 72;       // 点イベントがある日に期間ブロックが使う幅(%)
-  var POINT_H = 22;         // 点イベントの高さ(px)
+  var POINT_H = 26;         // 点・体調イベントの高さ(px)
 
   /** 重なり合う期間ブロックを列（レーン）に振り分ける */
   function assignLanes(items) {
@@ -70,7 +70,8 @@ var Timeline = (function () {
     var points = [];
 
     logs.forEach(function (l) {
-      if (l.type === 'point') {
+      // 点（服薬など）と体調（スケール）は、どちらも右側のレーンに並べる
+      if (l.type === 'point' || l.type === 'scale') {
         points.push(l);
         return;
       }
@@ -148,12 +149,20 @@ var Timeline = (function () {
       tick.style.right = '0';
       root.appendChild(tick);
 
+      var isScale = (p.type === 'scale' && p.scale);
+      var mark;
+      if (isScale) {
+        var si = Store.scaleInfo(p.scale);
+        mark = '<span class="pi-scale" style="background:' + si.color + '">' + si.v + '</span>';
+      } else {
+        mark = '<span class="dot" style="background:' + cat.color + '"></span>';
+      }
+
       var b = document.createElement('button');
-      b.className = 'point-item';
+      b.className = 'point-item' + (isScale ? ' is-scale' : '');
       b.style.top = top + 'px';
       b.dataset.id = p.id;
-      b.innerHTML =
-        '<span class="dot" style="background:' + cat.color + '"></span>' +
+      b.innerHTML = mark +
         '<span class="pi-name">' + UI.esc(cat.name) + (p.memo ? ' ' + UI.esc(p.memo) : '') + '</span>' +
         '<span class="pi-time">' + UI.fmtTime(p.start) + '</span>';
       b.addEventListener('click', function () { onTap(p.id); });
