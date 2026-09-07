@@ -22,8 +22,9 @@
 
 - 公開 URL: https://shogotanihara-cpu.github.io/Claude/
 
-初回だけリポジトリ側の設定が必要です。
-**Settings → Pages → Build and deployment → Source** を **「GitHub Actions」** に変更してください。
+Pages が未設定の場合はワークフローが自動で有効化します（`configure-pages` の `enablement`）。
+うまくいかないときは **Settings → Pages → Build and deployment → Source** を
+**「GitHub Actions」** に手動で変更してください。
 
 ## ローカルで動かす
 
