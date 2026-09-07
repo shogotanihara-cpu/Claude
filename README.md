@@ -20,13 +20,23 @@
 `main` ブランチに変更が入ると GitHub Actions（`.github/workflows/pages.yml`）が
 自動で GitHub Pages にデプロイします。
 
-- 公開 URL: https://shogotanihara-cpu.github.io/Claude/
+- 公開 URL: https://app.oshihitsuji.jp/
 
-初回だけ、リポジトリ側で一度だけ設定が必要です。
-**Settings → Pages → Build and deployment → Source** を **「GitHub Actions」** に変更してください。
+同じドメインで運用しているブログとは別のサブドメインに置いています。
+ブログの apex（`oshihitsuji.jp`）のレコードには一切触れていません。
+アプリからブログへのリンクはなく、`noindex` と `robots.txt` で検索結果にも出しません。
 
-（`configure-pages` の `enablement` による自動有効化は、GITHUB_TOKEN に Pages サイトの
-作成権限がないため使えません。）
+### 初回だけ必要な設定
+
+1. **DNS** — `app` の CNAME レコードを `shogotanihara-cpu.github.io.` に向ける
+2. **GitHub** — Settings → Pages → Build and deployment → Source を **「GitHub Actions」** に変更
+3. DNS の確認が通ったら、同じ画面で **Enforce HTTPS** を有効にする
+
+カスタムドメインはリポジトリ直下の `CNAME` ファイルで指定しており、
+ワークフローが公開ファイルに含めます。
+
+（`configure-pages` の `enablement` による Pages の自動有効化は、GITHUB_TOKEN に
+Pages サイトの作成権限がないため使えません。手順 2 は手動で行う必要があります。）
 
 ## ローカルで動かす
 
