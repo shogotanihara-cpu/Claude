@@ -15,7 +15,17 @@
 - **カテゴリ管理** — 名前・色・既定の記録方法（期間 / 点）を自由に編集
 - **オフライン動作** — Service Worker でアプリ本体をキャッシュ
 
-## 使い方
+## 公開先
+
+`main` ブランチに変更が入ると GitHub Actions（`.github/workflows/pages.yml`）が
+自動で GitHub Pages にデプロイします。
+
+- 公開 URL: https://shogotanihara-cpu.github.io/Claude/
+
+初回だけリポジトリ側の設定が必要です。
+**Settings → Pages → Build and deployment → Source** を **「GitHub Actions」** に変更してください。
+
+## ローカルで動かす
 
 静的ファイルだけで動くので、Web サーバーに置くか、ローカルで配信します。
 
