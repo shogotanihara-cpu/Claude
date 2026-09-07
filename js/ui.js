@@ -22,6 +22,30 @@ var UI = (function () {
     return x.getTime();
   }
 
+  /** ts を含む週の月曜 0:00 */
+  function startOfWeekMonday(ts) {
+    var x = new Date(startOfDay(ts));
+    var wd = x.getDay(); // 0=日 .. 6=土
+    var diff = (wd === 0) ? -6 : (1 - wd);
+    x.setDate(x.getDate() + diff);
+    return x.getTime();
+  }
+
+  /** ts を含む月の1日 0:00 */
+  function startOfMonth(ts) {
+    var x = new Date(ts);
+    x.setHours(0, 0, 0, 0);
+    x.setDate(1);
+    return x.getTime();
+  }
+
+  /** 月初(ts)から n ヶ月ずらした月初を返す */
+  function addMonths(ts, n) {
+    var x = new Date(startOfMonth(ts));
+    x.setMonth(x.getMonth() + n);
+    return x.getTime();
+  }
+
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
   /** epoch → "YYYY-MM-DD"（input[type=date] 用・ローカル時刻） */
@@ -69,6 +93,30 @@ var UI = (function () {
   function fmtShortDate(ts) {
     var d = new Date(ts);
     return (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  /** 週の表示: "2026/9/1(月)〜9/7(日)" */
+  function fmtWeekLabel(from) {
+    var to = addDays(from, 6);
+    var f = new Date(from), t = new Date(to);
+    var head = f.getFullYear() + '/' + (f.getMonth() + 1) + '/' + f.getDate() + '(' + WD[f.getDay()] + ')';
+    var tailYear = (t.getFullYear() !== f.getFullYear()) ? (t.getFullYear() + '/') : '';
+    return head + '〜' + tailYear + (t.getMonth() + 1) + '/' + t.getDate() + '(' + WD[t.getDay()] + ')';
+  }
+
+  /** 月の表示: "2026年9月" */
+  function fmtMonthLabel(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+  }
+
+  /** 複数月にまたがる範囲の表示: "2026年7月〜9月" / "2025年11月〜2026年1月" */
+  function fmtMonthRangeLabel(fromMonthStart, toMonthStart) {
+    var f = new Date(fromMonthStart), t = new Date(toMonthStart);
+    if (f.getFullYear() === t.getFullYear()) {
+      return f.getFullYear() + '年' + (f.getMonth() + 1) + '月〜' + (t.getMonth() + 1) + '月';
+    }
+    return f.getFullYear() + '年' + (f.getMonth() + 1) + '月〜' + t.getFullYear() + '年' + (t.getMonth() + 1) + '月';
   }
 
   /** ミリ秒 → "7時間30分" / "45分" */
@@ -144,10 +192,12 @@ var UI = (function () {
   return {
     MIN: MIN, HOUR: HOUR, DAY: DAY, WD: WD,
     startOfDay: startOfDay, addDays: addDays, pad: pad,
+    startOfWeekMonday: startOfWeekMonday, startOfMonth: startOfMonth, addMonths: addMonths,
     dateInputValue: dateInputValue, timeInputValue: timeInputValue,
     parseDateTime: parseDateTime,
     fmtTime: fmtTime, fmtDate: fmtDate, fmtDateFull: fmtDateFull,
     fmtShortDate: fmtShortDate, fmtDuration: fmtDuration, fmtHours: fmtHours,
+    fmtWeekLabel: fmtWeekLabel, fmtMonthLabel: fmtMonthLabel, fmtMonthRangeLabel: fmtMonthRangeLabel,
     esc: esc, el: el, textOn: textOn,
     openSheet: openSheet, closeSheet: closeSheet, toast: toast
   };

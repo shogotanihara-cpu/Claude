@@ -6,14 +6,12 @@ var Summary = (function () {
   'use strict';
 
   /**
-   * 直近 days 日分を日別・カテゴリ別に集計する。
+   * [from, to) の範囲を日別・カテゴリ別に集計する。
    * 期間ログは日をまたぐぶんを日ごとに切り分けて合算する。
    */
-  function aggregate(days) {
-    var today = UI.startOfDay(Date.now());
-    var from = UI.addDays(today, -(days - 1));
-    var to = UI.addDays(today, 1);
+  function aggregate(from, to) {
     var now = Date.now();
+    var days = Math.round((to - from) / UI.DAY);
 
     var dayList = [];
     for (var i = 0; i < days; i++) {
@@ -59,7 +57,7 @@ var Summary = (function () {
       return (b.ms - a.ms) || (b.count - a.count);
     });
 
-    return { days: dayList, ranked: ranked, from: from, to: to, dayCount: days };
+    return { days: dayList, ranked: ranked, from: from, to: to, dayCount: dayList.length };
   }
 
   function chartHTML(agg) {
@@ -81,16 +79,28 @@ var Summary = (function () {
       return '<div class="chart-col" title="' + UI.fmtShortDate(d.start) + '">' + segs + '</div>';
     }).join('');
 
+    // ラベルは、日ごとの列（トラック）をまたいで中央寄せで表示する。
+    // 列自体は「minmax(0, 1fr)」で最小幅0にしてあるので、文字が列より
+    // 大きくてもページ全体が横に広がることはない。
+    var n = agg.days.length;
+    var lastStepIdx = Math.floor((n - 1) / step) * step;
+    var span = Math.min(n, step <= 1 ? 1 : (step <= 5 ? 5 : 9));
     var labels = agg.days.map(function (d, i) {
-      var show = (i % step === 0) || i === agg.days.length - 1;
-      return '<div class="chart-label">' + (show ? UI.fmtShortDate(d.start) : '') + '</div>';
+      var isLast = i === n - 1;
+      var show = (i % step === 0) || (isLast && (i - lastStepIdx) >= Math.max(2, Math.floor(step / 3)));
+      if (!show) return '';
+      var startCol = Math.min(Math.max(i + 1 - Math.floor(span / 2), 1), n - span + 1);
+      return '<div class="chart-label" style="grid-column:' + startCol + ' / span ' + span + '">' +
+             UI.fmtShortDate(d.start) + '</div>';
     }).join('');
 
-    return '<div class="chart">' + cols + '</div><div class="chart-labels">' + labels + '</div>';
+    return '<div class="chart">' + cols + '</div>' +
+           '<div class="chart-labels" style="grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' +
+           labels + '</div>';
   }
 
-  function render(container, days) {
-    var agg = aggregate(days);
+  function render(container, from, to) {
+    var agg = aggregate(from, to);
 
     if (!agg.ranked.length) {
       container.innerHTML =
