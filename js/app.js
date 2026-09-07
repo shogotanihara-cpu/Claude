@@ -87,6 +87,7 @@
     UI.el('datePicker').value = UI.dateInputValue(app.day);
 
     renderQuickBar();
+    renderNudge();
     var result = Timeline.render(UI.el('timeline'), app.day, openEditor);
     renderDayStats(result);
 
@@ -129,6 +130,34 @@
 
     box.querySelectorAll('[data-quick]').forEach(function (b) {
       b.addEventListener('click', function () { quickTap(b.dataset.quick); });
+    });
+  }
+
+  /** 記録し忘れているものがあれば、今日ぶんだけ知らせる */
+  function renderNudge() {
+    var box = UI.el('nudgeBox');
+    var today = UI.startOfDay(Date.now());
+
+    // 今日を見ているときだけ出す。閉じたらその日は出さない
+    if (app.day !== today || Notify.isDismissedToday()) { box.innerHTML = ''; return; }
+
+    var list = Notify.due();
+    if (!list.length) { box.innerHTML = ''; return; }
+
+    box.innerHTML = '<div class="nudge">' +
+      '<div class="nudge-main">' +
+        '<div class="nudge-title">まだ記録がありません</div>' +
+        '<div class="nudge-list">' + list.map(function (r) {
+          var name = r.catId ? Store.category(r.catId).name : '記録';
+          return '<span>' + r.time + ' ' + UI.esc(name) + '</span>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<button class="nudge-close" id="nudgeClose" aria-label="閉じる">×</button>' +
+    '</div>';
+
+    UI.el('nudgeClose').addEventListener('click', function () {
+      Notify.dismissToday();
+      renderNudge();
     });
   }
 
@@ -329,15 +358,21 @@
         '<p class="hint" style="margin-top:12px">「ワンタップ」にしたカテゴリは、タイムラインの上部に出て1回のタップで記録できます。</p>' +
       '</div>' +
 
+      reminderCardHTML() +
+
       '<div class="card">' +
         '<div class="card-title">データ</div>' +
         '<p class="hint">記録はこの端末のブラウザ内だけに保存されます。' +
-        '機種変更やブラウザのデータ削除で消えるため、ときどきバックアップを保存してください。</p>' +
+        '機種変更やブラウザのデータ削除で消えるため、ときどきバックアップを保存してください。' +
+        'バックアップのファイルは、新しい端末で「復元」すればそのまま引き継げます。</p>' +
         '<div class="btn-row">' +
           '<button class="btn btn-sub" id="backupBtn">バックアップ</button>' +
           '<button class="btn btn-sub" id="restoreBtn">復元</button>' +
         '</div>' +
         '<input type="file" id="restoreFile" accept="application/json,.json" hidden>' +
+        '<div class="btn-row"><button class="btn btn-sub" id="csvBtn">CSVで書き出す</button></div>' +
+        '<p class="hint" style="margin-top:10px">CSVは表計算ソフトで開けます。' +
+        'バックアップ（JSON）と違い、復元には使えません。</p>' +
         '<div class="btn-row"><button class="btn btn-danger" id="clearBtn">すべての記録を削除</button></div>' +
       '</div>' +
 
@@ -362,6 +397,12 @@
     UI.el('addCatBtn').addEventListener('click', function () { openCategoryEditor(null); });
     UI.el('settingsBody').querySelectorAll('[data-editcat]').forEach(function (b) {
       b.addEventListener('click', function () { openCategoryEditor(b.dataset.editcat); });
+    });
+    bindReminderCard();
+
+    UI.el('csvBtn').addEventListener('click', function () {
+      Exporter.downloadCSV();
+      UI.toast('CSVを書き出しました');
     });
 
     UI.el('backupBtn').addEventListener('click', function () {
@@ -391,6 +432,127 @@
       Store.clearAll();
       UI.toast('削除しました');
     });
+  }
+
+  /* ═════════ リマインダー ═════════ */
+
+  function reminderCardHTML() {
+    var list = Store.reminders();
+    var rows = list.length
+      ? list.map(function (r) {
+          var name = r.catId ? Store.category(r.catId).name : 'すべての記録';
+          return '<button class="row" data-editrem="' + r.id + '">' +
+            '<span class="row-val" style="width:52px">' + r.time + '</span>' +
+            '<div class="row-main"><div class="row-title">' + UI.esc(name) + '</div>' +
+            '<div class="row-sub">この時刻までに記録がなければ知らせます</div></div>' +
+            '<span style="color:var(--text-faint)">›</span></button>';
+        }).join('')
+      : '<p class="hint">まだ設定されていません。</p>';
+
+    var perm = Notify.permission();
+    var permRow = '';
+    if (list.length) {
+      if (perm === 'granted') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'ブラウザ通知は<b>オン</b>です。ただしアプリを閉じている間は鳴りません。' +
+          '確実に知らせてほしい場合は、下のボタンでカレンダーに登録してください。</p>';
+      } else if (perm === 'unsupported') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'この環境ではブラウザ通知が使えません。カレンダーに登録してお使いください。</p>';
+      } else if (perm === 'denied') {
+        permRow = '<p class="hint" style="margin-top:12px">' +
+          'ブラウザ通知はブロックされています。カレンダーに登録してお使いください。</p>';
+      } else {
+        permRow = '<div class="btn-row"><button class="btn btn-sub" id="permBtn">ブラウザ通知を許可する</button></div>';
+      }
+    }
+
+    return '<div class="card">' +
+      '<div class="card-title">リマインダー</div>' + rows +
+      '<div class="btn-row"><button class="btn btn-sub" id="addRemBtn">リマインダーを追加</button></div>' +
+      permRow +
+      (list.length
+        ? '<div class="btn-row"><button class="btn btn-sub" id="icsBtn">カレンダーに登録</button></div>' +
+          '<p class="hint" style="margin-top:10px">' +
+          'カレンダーに登録すると、アプリを閉じていても端末の標準アプリが毎日知らせてくれます。' +
+          'iPhone で確実に知らせてほしい場合はこちらをお使いください。</p>'
+        : '') +
+      '</div>';
+  }
+
+  function openReminderEditor(id) {
+    var rem = null;
+    if (id) {
+      Store.reminders().forEach(function (r) { if (r.id === id) rem = r; });
+    }
+    var cats = Store.categories();
+
+    var opts = '<option value="">すべての記録</option>' + cats.map(function (c) {
+      return '<option value="' + c.id + '"' +
+        (rem && rem.catId === c.id ? ' selected' : '') + '>' + UI.esc(c.name) + '</option>';
+    }).join('');
+
+    UI.openSheet(
+      '<h2>' + (rem ? 'リマインダーを編集' : 'リマインダーを追加') + '</h2>' +
+      '<div class="field"><label>時刻</label>' +
+        '<input type="time" id="rTime" value="' + (rem ? rem.time : '21:00') + '"></div>' +
+      '<div class="field"><label>対象</label>' +
+        '<select id="rCat">' + opts + '</select>' +
+        '<p class="hint" style="margin-top:8px">選んだカテゴリの記録が、その日まだ1件もないときに知らせます。</p>' +
+      '</div>' +
+      '<button class="btn" id="rSave">保存</button>' +
+      (rem ? '<div class="btn-row"><button class="btn btn-danger" id="rDel">削除</button></div>' : '') +
+      '<div class="btn-row"><button class="btn btn-sub" id="rCancel">キャンセル</button></div>',
+      function (root) {
+        root.querySelector('#rSave').addEventListener('click', function () {
+          var time = root.querySelector('#rTime').value;
+          if (!time) { alert('時刻を入力してください。'); return; }
+          var catId = root.querySelector('#rCat').value || null;
+          if (rem) Store.updateReminder(rem.id, { time: time, catId: catId });
+          else Store.addReminder(time, catId);
+          Notify.schedule();
+          UI.toast('保存しました');
+          UI.closeSheet();
+        });
+        if (rem) {
+          root.querySelector('#rDel').addEventListener('click', function () {
+            Store.removeReminder(rem.id);
+            Notify.schedule();
+            UI.toast('削除しました');
+            UI.closeSheet();
+          });
+        }
+        root.querySelector('#rCancel').addEventListener('click', UI.closeSheet);
+      }
+    );
+  }
+
+  function bindReminderCard() {
+    var body = UI.el('settingsBody');
+
+    body.querySelectorAll('[data-editrem]').forEach(function (b) {
+      b.addEventListener('click', function () { openReminderEditor(b.dataset.editrem); });
+    });
+    UI.el('addRemBtn').addEventListener('click', function () { openReminderEditor(null); });
+
+    var permBtn = UI.el('permBtn');
+    if (permBtn) {
+      permBtn.addEventListener('click', function () {
+        Notify.request(function (res) {
+          if (res === 'granted') { Notify.schedule(); UI.toast('通知を許可しました'); }
+          else UI.toast('通知は許可されませんでした');
+          renderSettings();
+        });
+      });
+    }
+
+    var icsBtn = UI.el('icsBtn');
+    if (icsBtn) {
+      icsBtn.addEventListener('click', function () {
+        Exporter.downloadICS();
+        UI.toast('カレンダー用のファイルを書き出しました');
+      });
+    }
   }
 
   /* ═════════ 体調の記録（ワンタップからの近道） ═════════ */
@@ -758,5 +920,6 @@
   document.addEventListener('DOMContentLoaded', function () {
     bind();
     setTab('timeline');
+    Notify.schedule();
   });
 })();

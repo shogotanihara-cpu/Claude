@@ -17,7 +17,7 @@ var Store = (function () {
   'use strict';
 
   var KEY = 'actionlog.v1';   // 保存キーは据え置き（中身を version で見分ける）
-  var VERSION = 2;
+  var VERSION = 3;
 
   var PALETTE = [
     '#5b63b7', '#4a7fa5', '#2f8f78', '#5a9367', '#c08a3e',
@@ -58,7 +58,7 @@ var Store = (function () {
   }
 
   function blank() {
-    return { version: VERSION, categories: DEFAULT_CATEGORIES.slice(), logs: [] };
+    return { version: VERSION, categories: DEFAULT_CATEGORIES.slice(), logs: [], reminders: [] };
   }
 
   /**
@@ -67,6 +67,8 @@ var Store = (function () {
    */
   function migrate(s) {
     if (s.version === VERSION) return s;
+
+    if (!Array.isArray(s.reminders)) s.reminders = [];
 
     s.categories.forEach(function (c) {
       if (typeof c.quick !== 'boolean') c.quick = false;
@@ -101,6 +103,7 @@ var Store = (function () {
     }
     if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES.slice();
     if (!state.logs) state.logs = [];
+    if (!state.reminders) state.reminders = [];
     state = migrate(state);
     return state;
   }
@@ -214,6 +217,37 @@ var Store = (function () {
     }).sort(function (a, b) { return a.start - b.start; });
   }
 
+  /* ── reminders ────────────────────────── */
+  /* { id, time: "08:00", catId: カテゴリID または null } */
+
+  function reminders() {
+    return load().reminders.slice().sort(function (a, b) {
+      return a.time < b.time ? -1 : (a.time > b.time ? 1 : 0);
+    });
+  }
+
+  function addReminder(time, catId) {
+    load().reminders.push({ id: uid('r'), time: time, catId: catId || null });
+    persist();
+  }
+
+  function updateReminder(id, patch) {
+    var list = load().reminders;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        Object.keys(patch).forEach(function (k) { list[i][k] = patch[k]; });
+        persist();
+        return;
+      }
+    }
+  }
+
+  function removeReminder(id) {
+    var s = load();
+    s.reminders = s.reminders.filter(function (r) { return r.id !== id; });
+    persist();
+  }
+
   /* ── backup ───────────────────────────── */
 
   function exportJSON() { return JSON.stringify(load(), null, 2); }
@@ -250,6 +284,10 @@ var Store = (function () {
     runningLogs: runningLogs,
     runningOf: runningOf,
     logsInRange: logsInRange,
+    reminders: reminders,
+    addReminder: addReminder,
+    updateReminder: updateReminder,
+    removeReminder: removeReminder,
     exportJSON: exportJSON,
     importJSON: importJSON,
     clearAll: clearAll

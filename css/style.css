@@ -191,6 +191,31 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
 @media (prefers-reduced-motion: reduce) { .qb.is-live .qb-dot { animation: none } }
 
+/* ── 記録忘れの声かけ ──────────────────── */
+.nudge {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 10px 14px 0; padding: 11px 12px 11px 14px;
+  border-radius: var(--r);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.nudge-main { flex: 1; min-width: 0; }
+.nudge-title {
+  font-size: 12.5px; font-weight: 700; color: var(--accent);
+  letter-spacing: .03em;
+}
+.nudge-list {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px;
+  font-size: 12px; color: var(--text-dim);
+}
+.nudge-list span { font-variant-numeric: tabular-nums; }
+.nudge-close {
+  width: 26px; height: 26px; flex: 0 0 auto; border-radius: 50%;
+  font-size: 17px; line-height: 1; color: var(--text-faint);
+  display: grid; place-items: center; margin: -3px -3px 0 0;
+}
+.nudge-close:active { background: rgba(127, 140, 160, .18); }
+
 /* ── 記録中カード ──────────────────────── */
 .running-card {
   display: flex; align-items: center; gap: 12px;
@@ -452,7 +477,10 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   background: var(--surface); border: 1px solid var(--line);
   outline: none; -webkit-appearance: none; font-size: 14px;
 }
-.field input:focus, .field textarea:focus { border-color: var(--accent); }
+.field select {
+  background-image: none; /* 端末標準の見た目に任せる */
+}
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
 .field textarea { min-height: 64px; resize: vertical; line-height: 1.7; }
 .field-2 { display: flex; gap: 10px; }
 .field-2 > * { flex: 1; min-width: 0; }

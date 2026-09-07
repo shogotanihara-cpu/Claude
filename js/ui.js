@@ -237,6 +237,20 @@ var UI = (function () {
     sheetEl.addEventListener('touchcancel', endDrag);
   }
 
+  /* ── ファイルの書き出し ───────────────── */
+
+  function download(filename, text, mime) {
+    var blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   /* ── toast ────────────────────────────── */
 
   var toastTimer = null;
@@ -259,7 +273,7 @@ var UI = (function () {
     fmtShortDate: fmtShortDate, fmtDuration: fmtDuration, fmtHours: fmtHours,
     fmtDurationHTML: fmtDurationHTML, fmtDateFullPlain: fmtDateFullPlain,
     fmtWeekLabel: fmtWeekLabel, fmtMonthLabel: fmtMonthLabel, fmtMonthRangeLabel: fmtMonthRangeLabel,
-    esc: esc, el: el, textOn: textOn,
+    esc: esc, el: el, textOn: textOn, download: download,
     openSheet: openSheet, closeSheet: closeSheet, toast: toast
   };
 })();
