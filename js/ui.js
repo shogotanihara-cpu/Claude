@@ -156,15 +156,21 @@ var UI = (function () {
   /* ── sheet (bottom modal) ─────────────── */
 
   var sheetEl, scrimEl, onCloseCb = null;
+  var dragBound = false;
+  var drag = null;
+  var CLOSE_DISTANCE = 90; // これ以上下にドラッグしたら閉じる(px)
 
   function openSheet(html, onMount, onClose) {
     sheetEl = el('sheet');
     scrimEl = el('scrim');
+    sheetEl.style.transition = '';
+    sheetEl.style.transform = '';
     sheetEl.innerHTML = '<div class="sheet-grip"></div>' + html;
     sheetEl.hidden = false;
     scrimEl.hidden = false;
     document.body.style.overflow = 'hidden';
     onCloseCb = onClose || null;
+    bindSheetDrag();
     if (onMount) onMount(sheetEl);
   }
 
@@ -173,8 +179,46 @@ var UI = (function () {
     sheetEl.hidden = true;
     if (scrimEl) scrimEl.hidden = true;
     sheetEl.innerHTML = '';
+    sheetEl.style.transition = '';
+    sheetEl.style.transform = '';
     document.body.style.overflow = '';
     if (onCloseCb) { var cb = onCloseCb; onCloseCb = null; cb(); }
+  }
+
+  /** シートを下にスワイプすると閉じられるようにする（内容が一番上までスクロール
+   *  されているときだけドラッグを開始し、途中で本文のスクロールに切り替わっても
+   *  邪魔しない） */
+  function bindSheetDrag() {
+    if (dragBound) return;
+    dragBound = true;
+
+    sheetEl.addEventListener('touchstart', function (e) {
+      if (sheetEl.scrollTop > 0) { drag = null; return; }
+      drag = { startY: e.touches[0].clientY, dy: 0, active: false };
+    }, { passive: true });
+
+    sheetEl.addEventListener('touchmove', function (e) {
+      if (!drag) return;
+      if (sheetEl.scrollTop > 0) { drag = null; sheetEl.style.transform = ''; return; }
+      var dy = e.touches[0].clientY - drag.startY;
+      if (dy <= 0) { drag.active = false; sheetEl.style.transform = ''; return; }
+      drag.active = true;
+      drag.dy = dy;
+      sheetEl.style.transition = 'none';
+      sheetEl.style.transform = 'translateY(' + dy + 'px)';
+      e.preventDefault();
+    }, { passive: false });
+
+    function endDrag() {
+      if (!drag) return;
+      var shouldClose = drag.active && drag.dy > CLOSE_DISTANCE;
+      drag = null;
+      sheetEl.style.transition = 'transform .18s ease';
+      if (shouldClose) closeSheet();
+      else sheetEl.style.transform = '';
+    }
+    sheetEl.addEventListener('touchend', endDrag);
+    sheetEl.addEventListener('touchcancel', endDrag);
   }
 
   /* ── toast ────────────────────────────── */
