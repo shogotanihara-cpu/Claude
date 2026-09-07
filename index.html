@@ -50,9 +50,15 @@
   <!-- ── サマリー ── -->
   <section class="view" id="view-summary" data-view="summary" hidden>
     <div class="seg" id="rangeSeg" role="tablist">
-      <button class="seg-btn is-on" data-range="7">7日</button>
-      <button class="seg-btn" data-range="30">30日</button>
-      <button class="seg-btn" data-range="90">90日</button>
+      <button class="seg-btn is-on" data-mode="week">週</button>
+      <button class="seg-btn" data-mode="month">月</button>
+      <button class="seg-btn" data-mode="quarter">3ヶ月</button>
+    </div>
+    <div class="datebar" id="summaryDatebar">
+      <button class="iconbtn" id="summaryPrev" aria-label="前の期間">‹</button>
+      <div class="datelabel" id="summaryLabel"></div>
+      <button class="iconbtn" id="summaryNext" aria-label="次の期間">›</button>
+      <button class="todaybtn" id="summaryToday">今</button>
     </div>
     <div id="summaryBody"></div>
   </section>

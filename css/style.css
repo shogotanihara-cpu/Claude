@@ -97,6 +97,7 @@ button { cursor: pointer; border: none; background: none; }
   border-radius: 999px; background: var(--surface-2); color: var(--text-dim);
 }
 .datebar.is-hidden { display: none; }
+#summaryDatebar { padding-top: 10px; }
 
 /* ── Main / views ──────────────────────── */
 main {
@@ -160,6 +161,9 @@ main {
 .span-block .sb-meta { font-size: 10px; opacity: .85; font-variant-numeric: tabular-nums; }
 .span-block .sb-memo { font-size: 11px; opacity: .9; overflow: hidden; }
 .span-block.is-open { border-style: dashed; border-color: rgba(255, 255, 255, .7); }
+/* 日をまたいで途切れている辺だけ破線にする */
+.span-block.is-cut-top { border-top-style: dashed; border-top-color: rgba(255, 255, 255, .8); }
+.span-block.is-cut-bottom { border-bottom-style: dashed; border-bottom-color: rgba(255, 255, 255, .8); }
 .span-block.is-short { padding: 1px 6px; flex-direction: row; align-items: center; gap: 5px; }
 .span-block.is-short .sb-meta { font-size: 10px; }
 .span-block:active { filter: brightness(1.12); }
@@ -210,13 +214,14 @@ main {
 .bar-fill { height: 100%; border-radius: 999px; }
 
 /* ── Stacked chart ─────────────────────── */
-.chart { display: flex; align-items: flex-end; gap: 3px; height: 132px; margin-top: 4px; }
+.chart { display: flex; align-items: flex-end; gap: 3px; height: 132px; margin-top: 4px; overflow: hidden; }
 .chart-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 1px; min-width: 0; }
 .chart-seg { border-radius: 2px; min-height: 1px; }
-.chart-labels { display: flex; gap: 3px; margin-top: 6px; }
+/* グリッドにして、ラベルが自分の列幅を超えて表示されてもページ全体が横に広がらないようにする */
+.chart-labels { display: grid; margin-top: 6px; overflow: hidden; }
 .chart-label {
-  flex: 1; text-align: center; font-size: 9px; color: var(--text-faint);
-  overflow: hidden; white-space: nowrap;
+  min-width: 0; text-align: center; font-size: 9px; color: var(--text-faint);
+  white-space: nowrap;
 }
 
 /* ── Segmented control / chips ─────────── */

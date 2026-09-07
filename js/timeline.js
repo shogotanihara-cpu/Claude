@@ -95,9 +95,14 @@ var Timeline = (function () {
       var height = Math.max(yFor(s.to, dayStart) - top, MIN_BLOCK_H);
       var w = spanWidth / s.lanes;
 
+      var classes = ['span-block'];
+      if (height < SHORT_BLOCK_H) classes.push('is-short');
+      if (!s.log.end) classes.push('is-open');
+      if (s.cutTop) classes.push('is-cut-top');
+      if (s.cutBottom) classes.push('is-cut-bottom');
+
       var b = document.createElement('button');
-      b.className = 'span-block' + (height < SHORT_BLOCK_H ? ' is-short' : '') +
-                    (!s.log.end ? ' is-open' : '');
+      b.className = classes.join(' ');
       b.style.top = top + 'px';
       b.style.height = height + 'px';
       b.style.left = (s.lane * w) + '%';
@@ -106,8 +111,11 @@ var Timeline = (function () {
       b.style.color = UI.textOn(cat.color);
       b.dataset.id = s.log.id;
 
-      var range = (s.cutTop ? '↑' : '') + UI.fmtTime(s.log.start) + '–' +
-                  (s.log.end ? UI.fmtTime(s.log.end) : '継続中') + (s.cutBottom ? '↓' : '');
+      // 日をまたぐ場合は「前日」「翌日」を明記し、その辺の枠線を破線にして途切れていることを示す
+      var startLabel = s.cutTop ? '前日 ' + UI.fmtTime(s.log.start) : UI.fmtTime(s.log.start);
+      var endLabel = !s.log.end ? '継続中' :
+                     s.cutBottom ? '翌日 ' + UI.fmtTime(s.log.end) : UI.fmtTime(s.log.end);
+      var range = startLabel + '–' + endLabel;
       var dur = UI.fmtDuration((s.log.end || now) - s.log.start);
 
       var html = '<span class="sb-title">' + UI.esc(cat.name) + '</span>';

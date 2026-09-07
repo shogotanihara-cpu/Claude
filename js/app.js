@@ -15,10 +15,39 @@
   var app = {
     tab: 'timeline',
     day: UI.startOfDay(Date.now()),
-    range: 7,
+    summaryMode: 'week',      // 'week' | 'month' | 'quarter'
+    summaryAnchor: Date.now(), // この日を含む週・月・3ヶ月を表示する
     query: '',
     filters: []          // 絞り込み中のカテゴリID
   };
+
+  /** 現在の summaryMode / summaryAnchor から表示範囲を求める */
+  function summaryPeriod() {
+    var mode = app.summaryMode;
+    var anchor = app.summaryAnchor;
+
+    if (mode === 'week') {
+      var from = UI.startOfWeekMonday(anchor);
+      return { from: from, to: UI.addDays(from, 7), label: UI.fmtWeekLabel(from) };
+    }
+    if (mode === 'month') {
+      var from = UI.startOfMonth(anchor);
+      return { from: from, to: UI.addMonths(from, 1), label: UI.fmtMonthLabel(from) };
+    }
+    // quarter: アンカーの月を含む直近3ヶ月（アンカー月 + その前2ヶ月）
+    var lastMonth = UI.startOfMonth(anchor);
+    var from = UI.addMonths(lastMonth, -2);
+    return { from: from, to: UI.addMonths(lastMonth, 1), label: UI.fmtMonthRangeLabel(from, lastMonth) };
+  }
+
+  /** 前後の週・月・3ヶ月に移動する（dir は -1 か 1） */
+  function shiftSummaryAnchor(dir) {
+    if (app.summaryMode === 'week') {
+      app.summaryAnchor = UI.addDays(app.summaryAnchor, dir * 7);
+    } else {
+      app.summaryAnchor = UI.addMonths(app.summaryAnchor, dir);
+    }
+  }
 
   /* ═════════ 画面切り替え ═════════ */
 
@@ -113,7 +142,9 @@
   }
 
   function renderSummary() {
-    Summary.render(UI.el('summaryBody'), app.range);
+    var period = summaryPeriod();
+    UI.el('summaryLabel').textContent = period.label;
+    Summary.render(UI.el('summaryBody'), period.from, period.to);
   }
 
   /* ═════════ 検索 ═════════ */
@@ -508,13 +539,23 @@
     UI.el('scrim').addEventListener('click', UI.closeSheet);
 
     UI.el('rangeSeg').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-range]');
+      var b = e.target.closest('[data-mode]');
       if (!b) return;
-      app.range = +b.dataset.range;
+      app.summaryMode = b.dataset.mode;
       this.querySelectorAll('.seg-btn').forEach(function (o) {
         o.classList.toggle('is-on', o === b);
       });
       renderSummary();
+    });
+
+    UI.el('summaryPrev').addEventListener('click', function () {
+      shiftSummaryAnchor(-1); renderSummary();
+    });
+    UI.el('summaryNext').addEventListener('click', function () {
+      shiftSummaryAnchor(1); renderSummary();
+    });
+    UI.el('summaryToday').addEventListener('click', function () {
+      app.summaryAnchor = Date.now(); renderSummary();
     });
 
     UI.el('searchInput').addEventListener('input', function () {
