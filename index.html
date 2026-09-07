@@ -40,6 +40,7 @@
 
   <!-- ── タイムライン ── -->
   <section class="view" id="view-timeline" data-view="timeline">
+    <div class="quickbar" id="quickBar"></div>
     <div id="runningBox"></div>
     <div class="daystats" id="dayStats"></div>
     <div class="timeline-wrap">
@@ -91,12 +92,15 @@
 <div class="scrim" id="scrim" hidden></div>
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true"></div>
 
+<div class="report" id="report" hidden role="dialog" aria-modal="true" aria-label="受診用レポート"></div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script src="js/store.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/timeline.js"></script>
 <script src="js/summary.js"></script>
+<script src="js/report.js"></script>
 <script src="js/app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
