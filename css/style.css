@@ -354,16 +354,30 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 }
 .bar-fill { height: 100%; border-radius: 999px; }
 
-/* ── Chart ─────────────────────────────── */
-.chart {
-  display: flex; align-items: flex-end; gap: 3px; height: 128px;
-  margin-top: 4px; overflow: hidden;
+/* ── 日別グリッド（日を横に、時刻を縦に並べたミニタイムライン） ── */
+.daygrid-row { display: flex; gap: 6px; margin-top: 4px; }
+.daygrid-axis { position: relative; width: 15px; flex: 0 0 auto; }
+.daygrid-axis-label {
+  position: absolute; right: 0; transform: translateY(-50%);
+  font-size: 8.5px; color: var(--text-faint); font-variant-numeric: tabular-nums;
 }
-.chart-col {
-  flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
-  height: 100%; gap: 1px; min-width: 0;
+.daygrid {
+  position: relative; flex: 1; min-width: 0; overflow: hidden;
+  border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong);
 }
-.chart-seg { border-radius: 1.5px; min-height: 1px; }
+.daygrid-hour {
+  position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line);
+}
+.daygrid-cols { position: absolute; inset: 0; display: grid; gap: 2px; padding: 0 1px; }
+.daygrid-col { position: relative; min-width: 0; }
+.grid-span {
+  position: absolute; left: 15%; right: 15%; border-radius: 2px; min-height: 2px;
+}
+.grid-dot {
+  position: absolute; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;
+  border-radius: 50%; box-shadow: 0 0 0 1px var(--surface);
+}
+
 .chart-labels { display: grid; margin-top: 7px; overflow: hidden; }
 .chart-label {
   min-width: 0; text-align: center; font-size: 9px; color: var(--text-faint);

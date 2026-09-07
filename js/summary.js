@@ -74,28 +74,19 @@ var Summary = (function () {
     };
   }
 
-  function chartHTML(agg) {
-    var max = 0;
-    agg.days.forEach(function (d) { if (d.total > max) max = d.total; });
-    if (max <= 0) max = UI.HOUR;
+  var HOUR_PX = 10;              // 圧縮した1時間ぶんの高さ(px)
+  var GRID_H = 24 * HOUR_PX;     // 24時間ぶんの高さ
 
-    var step = agg.dayCount <= 7 ? 1 : (agg.dayCount <= 31 ? 5 : 15);
-
-    var cols = agg.days.map(function (d) {
-      var segs = Object.keys(d.byCat)
-        .sort(function (a, b) { return d.byCat[b] - d.byCat[a]; })
-        .map(function (cid) {
-          var h = (d.byCat[cid] / max) * 100;
-          return '<div class="chart-seg" style="height:' + h + '%;background:' +
-                 Store.category(cid).color + '"></div>';
-        }).join('');
-      return '<div class="chart-col" title="' + UI.fmtShortDate(d.start) + '">' + segs + '</div>';
-    }).join('');
-
-    // ラベルは日ごとの列をまたいで中央寄せにする（列より文字が大きくてもはみ出さない）
+  /**
+   * 日ごとの列をまたいでラベルを中央寄せにする（列より文字が大きくてもはみ出さない）。
+   * 通常の積み上げグラフ・この後の日別グリッドの両方で使う。
+   */
+  function dayLabelsHTML(agg) {
     var n = agg.days.length;
+    var step = n <= 7 ? 1 : (n <= 31 ? 5 : 15);
     var lastStepIdx = Math.floor((n - 1) / step) * step;
     var span = Math.min(n, step <= 1 ? 1 : (step <= 5 ? 5 : 9));
+
     var labels = agg.days.map(function (d, i) {
       var isLast = i === n - 1;
       var show = (i % step === 0) || (isLast && (i - lastStepIdx) >= Math.max(2, Math.floor(step / 3)));
@@ -105,9 +96,58 @@ var Summary = (function () {
              UI.fmtShortDate(d.start) + '</div>';
     }).join('');
 
-    return '<div class="chart">' + cols + '</div>' +
-           '<div class="chart-labels" style="grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' +
+    return '<div class="chart-labels" style="grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' +
            labels + '</div>';
+  }
+
+  /**
+   * 期間内の記録を、日を横に・時刻を縦に並べたグリッドで見せる。
+   * 積み上げの合計時間ではなく、実際に「いつ」記録したかをそのまま描く
+   * ＝ 1日ぶんのタイムラインを、期間分だけ横に並べたもの。
+   * 縦の目盛りは2時間おきに間引いてある。
+   */
+  function dayGridHTML(agg) {
+    var now = Date.now();
+    var n = agg.days.length;
+
+    var axis = '';
+    for (var h = 0; h <= 24; h += 2) {
+      axis += '<span class="daygrid-axis-label" style="top:' + (h * HOUR_PX) + 'px">' + h + '</span>';
+    }
+
+    var gridlines = '';
+    for (var h2 = 2; h2 < 24; h2 += 2) {
+      gridlines += '<div class="daygrid-hour" style="top:' + (h2 * HOUR_PX) + 'px"></div>';
+    }
+
+    var cols = agg.days.map(function (d) {
+      var dayStart = d.start, dayEnd = UI.addDays(dayStart, 1);
+      var marks = Store.logsInRange(dayStart, dayEnd).map(function (l) {
+        if (l.type === 'span') {
+          var end = Math.min(l.end || now, dayEnd);
+          var start = Math.max(l.start, dayStart);
+          if (end <= start) return '';
+          var top = (start - dayStart) / UI.HOUR * HOUR_PX;
+          var height = Math.max((end - start) / UI.HOUR * HOUR_PX, 2);
+          return '<div class="grid-span" style="top:' + top + 'px;height:' + height +
+                 'px;background:' + Store.category(l.catId).color + '"></div>';
+        }
+        var y = (l.start - dayStart) / UI.HOUR * HOUR_PX;
+        var color = (l.type === 'scale' && l.scale)
+          ? Store.scaleInfo(l.scale).color
+          : Store.category(l.catId).color;
+        return '<div class="grid-dot" style="top:' + y + 'px;background:' + color + '"></div>';
+      }).join('');
+      return '<div class="daygrid-col">' + marks + '</div>';
+    }).join('');
+
+    return '<div class="daygrid-row">' +
+      '<div class="daygrid-axis" style="height:' + GRID_H + 'px">' + axis + '</div>' +
+      '<div class="daygrid" style="height:' + GRID_H + 'px">' + gridlines +
+        '<div class="daygrid-cols" style="grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' +
+          cols + '</div>' +
+      '</div>' +
+    '</div>' + dayLabelsHTML(agg);
   }
 
   /** 体調の推移。縦が1〜5、横が期間 */
@@ -182,8 +222,8 @@ var Summary = (function () {
       html += '<div class="card"><div class="card-title">体調の推移</div>' + scaleHTML(agg) + '</div>';
     }
 
-    /* 日別グラフ */
-    html += '<div class="card"><div class="card-title">日別の内訳</div>' + chartHTML(agg) + '</div>';
+    /* 日別グリッド */
+    html += '<div class="card"><div class="card-title">日別の内訳</div>' + dayGridHTML(agg) + '</div>';
 
     /* カテゴリ別 */
     var maxMs = agg.ranked[0].ms || 1;
