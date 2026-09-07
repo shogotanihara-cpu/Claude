@@ -88,9 +88,11 @@
 
     renderQuickBar();
     renderNudge();
-    var result = Timeline.render(UI.el('timeline'), app.day, openEditor, function (ts) {
-      openEditor(null, ts);
-    });
+    var result = Timeline.render(
+      UI.el('timeline'), app.day, openEditor,
+      function (ts) { openEditor(null, ts); },
+      function (startTs, endTs, x, y) { openDragCategoryPicker(startTs, endTs, x, y); }
+    );
     renderDayStats(result);
 
     if (pendingScroll) {
@@ -160,6 +162,50 @@
     UI.el('nudgeClose').addEventListener('click', function () {
       Notify.dismissToday();
       renderNudge();
+    });
+  }
+
+  /**
+   * タイムラインをドラッグして期間を選んだ直後に出す、軽いカテゴリ選択。
+   * 入力画面(シート)には遷移せず、チップを1回タップするだけで記録を確定する。
+   */
+  function openDragCategoryPicker(startTs, endTs, x, y) {
+    var cats = Store.categories().filter(function (c) { return c.kind === 'span'; });
+    if (!cats.length) { openEditor(null, startTs); return; }   // 期間カテゴリが無ければ通常の入力へ
+
+    var scrim = document.createElement('div');
+    scrim.className = 'drag-scrim';
+
+    var pop = document.createElement('div');
+    pop.className = 'drag-pop';
+    pop.innerHTML =
+      '<div class="drag-pop-time">' + UI.fmtTime(startTs) + '–' + UI.fmtTime(endTs) +
+        '・' + UI.fmtDuration(endTs - startTs) + '</div>' +
+      '<div class="drag-pop-chips">' + cats.map(function (c) {
+        return '<button class="chip" data-cat="' + c.id + '" style="background:' + c.color +
+          ';color:' + UI.textOn(c.color) + '">' + UI.esc(c.name) + '</button>';
+      }).join('') + '</div>';
+
+    document.body.appendChild(scrim);
+    document.body.appendChild(pop);
+
+    // 指を離した位置の近くに、画面外へはみ出さないよう置く
+    var margin = 10;
+    var rect = pop.getBoundingClientRect();
+    var left = Math.min(Math.max(x - rect.width / 2, margin), window.innerWidth - rect.width - margin);
+    var top = Math.min(Math.max(y - rect.height - 18, margin), window.innerHeight - rect.height - margin);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+
+    function close() { scrim.remove(); pop.remove(); }
+    scrim.addEventListener('click', close);
+    pop.querySelectorAll('[data-cat]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var cat = Store.category(b.dataset.cat);
+        Store.addLog({ catId: cat.id, type: 'span', start: startTs, end: endTs, memo: '', scale: null });
+        UI.toast(cat.name + 'を記録しました');
+        close();
+      });
     });
   }
 

@@ -36,7 +36,7 @@
   --r-lg: 16px;
 
   --tabbar-h: 56px;
-  --hour-h: 56px;
+  --hour-h: 20px;   /* js/timeline.js の HOUR_H と合わせる */
   --gutter-w: 44px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -270,11 +270,6 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   width: calc(var(--gutter-w) - 9px); text-align: right;
   font-size: 10px; color: var(--text-faint); font-weight: 500;
 }
-.halfhour {
-  position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1px solid var(--line); opacity: .45; pointer-events: none;
-}
-
 .now-line {
   position: absolute; left: -5px; right: 0; height: 0;
   border-top: 1.5px solid var(--danger); z-index: 6; pointer-events: none;
@@ -319,6 +314,18 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   display: grid; place-items: center;
   font-size: 10px; font-weight: 700; color: #fff;
 }
+.drag-preview {
+  position: absolute; left: 0; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 1.5px dashed var(--accent);
+  pointer-events: none; overflow: hidden;
+}
+.drag-preview-label {
+  position: absolute; top: 2px; left: 6px; right: 6px;
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 .point-tick {
   position: absolute; height: 0; border-top: 1px dotted var(--line-strong);
   pointer-events: none; opacity: .8;
@@ -424,6 +431,18 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 }
 .chip.is-on { border-color: transparent; font-weight: 700; }
 .chip.is-on .dot { display: none; }
+
+/* ── ドラッグ作成のカテゴリ選択（軽いポップオーバー。入力画面には遷移しない） ── */
+.drag-scrim { position: fixed; inset: 0; z-index: 45; background: rgba(8, 11, 16, .32); }
+.drag-pop {
+  position: fixed; z-index: 46; max-width: calc(100vw - 20px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 12px 14px; animation: fade .12s ease;
+}
+.drag-pop-time {
+  font-size: 12px; font-weight: 700; color: var(--text-dim); margin-bottom: 9px;
+}
+.drag-pop-chips { display: flex; flex-wrap: wrap; gap: 7px; max-width: 260px; }
 
 /* ── Search ────────────────────────────── */
 .searchbar { padding: 12px 14px 2px; }

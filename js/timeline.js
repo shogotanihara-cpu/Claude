@@ -5,10 +5,14 @@
 var Timeline = (function () {
   'use strict';
 
-  var HOUR_H = 56;          // 1時間あたりの高さ(px) — CSS の --hour-h と合わせる
-  var MIN_BLOCK_H = 16;     // ブロックの最小高さ
+  // 0〜24時が一画面に収まることを優先し、1時間ぶんの高さを大きく圧縮している。
+  // その代わり、多くのブロックは名前+長さだけの簡易表示（is-short）になる。
+  // 詳細（時刻範囲・メモ）は長い記録なら収まるし、それ以外はタップで見られる。
+  var HOUR_H = 20;          // 1時間あたりの高さ(px) — CSS の --hour-h と合わせる
+  var LABEL_STEP = 2;       // 時刻ラベルは詰まりすぎないよう2時間おきに間引く
+  var MIN_BLOCK_H = 14;     // ブロックの最小高さ
   var SHORT_BLOCK_H = 34;   // これ未満は1行表示に切り替え
-  var POINT_H = 26;         // 点・体調イベントの高さ(px)
+  var POINT_H = 20;         // 点・体調イベントの高さ(px)
 
   // 期間・点・体調を常に3分割の固定幅にする（その日にどれかが無くても
   // 幅が変わらないようにして、日をまたいだ見比べがしやすいようにする）
@@ -42,41 +46,126 @@ var Timeline = (function () {
     return (ts - dayStart) / UI.HOUR * HOUR_H;
   }
 
+  function roundTo5Min(ts) {
+    return Math.round(ts / (5 * UI.MIN)) * (5 * UI.MIN);
+  }
+
   /**
-   * @param {HTMLElement} root      描画先
-   * @param {number} dayStart       その日の 0:00 (epoch)
-   * @param {function} onTap        既存ログのIDを受け取るコールバック
-   * @param {function} [onEmptyTap] 空いている時間帯をタップしたときに時刻(epoch)を渡すコールバック
+   * @param {HTMLElement} root       描画先
+   * @param {number} dayStart        その日の 0:00 (epoch)
+   * @param {function} onTap         既存ログのIDを受け取るコールバック
+   * @param {function} [onEmptyTap]  空いている時間帯をタップしたときに時刻(epoch)を渡す
+   * @param {function} [onDragCreate] 空いている時間帯をドラッグしたときに (開始, 終了,
+   *                                  指を離した位置のX, Y) を渡す。入力画面には遷移せず、
+   *                                  呼び出し側で軽いカテゴリ選択だけ出すことを想定している
    */
-  function render(root, dayStart, onTap, onEmptyTap) {
+  function render(root, dayStart, onTap, onEmptyTap, onDragCreate) {
     var dayEnd = UI.addDays(dayStart, 1);
     var now = Date.now();
 
     root.innerHTML = '';
     root.style.height = (24 * HOUR_H) + 'px';
 
-    if (onEmptyTap) {
-      root.onclick = function (e) {
-        if (e.target !== root) return;   // 記録のブロック自体をタップした場合は何もしない
-        var ts = dayStart + (e.offsetY / HOUR_H) * UI.HOUR;
-        ts = Math.round(ts / (5 * UI.MIN)) * (5 * UI.MIN);   // 5分刻みに丸める
-        onEmptyTap(Math.min(Math.max(ts, dayStart), dayEnd - UI.MIN));
+    // root（#timeline）は毎回作り直さず使い回すので、innerHTML を空にしても
+    // 前回 addEventListener したハンドラは残ったままになる。付け直す前に必ず外す。
+    if (root._tlCleanup) { root._tlCleanup(); root._tlCleanup = null; }
+
+    if (onEmptyTap || onDragCreate) {
+      var DRAG_THRESHOLD = 8;   // これ未満の移動はタップとして扱う(px)
+      var drag = null;
+
+      var range = function (offsetA, offsetB) {
+        var a = Math.min(offsetA, offsetB), b = Math.max(offsetA, offsetB);
+        var start = roundTo5Min(dayStart + (a / HOUR_H) * UI.HOUR);
+        var end = roundTo5Min(dayStart + (b / HOUR_H) * UI.HOUR);
+        start = Math.min(Math.max(start, dayStart), dayEnd - 5 * UI.MIN);
+        end = Math.max(end, start + 5 * UI.MIN);
+        end = Math.min(end, dayEnd);
+        return { start: start, end: end };
+      };
+
+      var onPointerDown = function (e) {
+        drag = null;
+        if (e.target !== root) return;   // 記録のブロック自体を押した場合は何もしない
+        var rect = root.getBoundingClientRect();
+        var xPct = (e.clientX - rect.left) / rect.width * 100;
+        if (xPct >= SPAN_AREA) return;   // 点・体調のレーンではドラッグ作成はしない
+        drag = {
+          rect: rect, pointerId: e.pointerId, moved: false,
+          startOffsetY: e.clientY - rect.top
+        };
+      };
+
+      var onPointerMove = function (e) {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        var curOffsetY = e.clientY - drag.rect.top;
+        if (!drag.moved && Math.abs(curOffsetY - drag.startOffsetY) < DRAG_THRESHOLD) return;
+        if (!drag.moved) {
+          drag.moved = true;
+          try { root.setPointerCapture(drag.pointerId); } catch (err) { /* noop */ }
+        }
+        if (!onDragCreate) return;
+        e.preventDefault();
+
+        var r = range(drag.startOffsetY, curOffsetY);
+        if (!drag.previewEl) {
+          drag.previewEl = document.createElement('div');
+          drag.previewEl.className = 'drag-preview';
+          drag.previewEl.style.width = 'calc(' + SPAN_AREA + '% - 3px)';
+          root.appendChild(drag.previewEl);
+        }
+        var top = yFor(r.start, dayStart), bottom = yFor(r.end, dayStart);
+        drag.previewEl.style.top = top + 'px';
+        drag.previewEl.style.height = Math.max(bottom - top, 4) + 'px';
+        drag.previewEl.innerHTML = '<span class="drag-preview-label">' +
+          UI.fmtTime(r.start) + '–' + UI.fmtTime(r.end) + '</span>';
+      };
+
+      var onPointerUp = function (e) {
+        if (!drag || e.pointerId !== drag.pointerId) { drag = null; return; }
+        if (drag.previewEl) drag.previewEl.remove();
+
+        if (!drag.moved) {
+          if (onEmptyTap) {
+            var ts = roundTo5Min(dayStart + (drag.startOffsetY / HOUR_H) * UI.HOUR);
+            onEmptyTap(Math.min(Math.max(ts, dayStart), dayEnd - UI.MIN));
+          }
+        } else if (onDragCreate) {
+          var curOffsetY = e.clientY - drag.rect.top;
+          var r = range(drag.startOffsetY, curOffsetY);
+          onDragCreate(r.start, r.end, e.clientX, e.clientY);
+        }
+        drag = null;
+      };
+
+      var onPointerCancel = function () {
+        if (drag && drag.previewEl) drag.previewEl.remove();
+        drag = null;
+      };
+
+      root.addEventListener('pointerdown', onPointerDown);
+      root.addEventListener('pointermove', onPointerMove);
+      root.addEventListener('pointerup', onPointerUp);
+      root.addEventListener('pointercancel', onPointerCancel);
+
+      root._tlCleanup = function () {
+        root.removeEventListener('pointerdown', onPointerDown);
+        root.removeEventListener('pointermove', onPointerMove);
+        root.removeEventListener('pointerup', onPointerUp);
+        root.removeEventListener('pointercancel', onPointerCancel);
       };
     }
 
-    /* 時刻グリッド */
+    /* 時刻グリッド（30分刻みの罫線は、この高さでは詰まりすぎるので省く） */
     var grid = document.createDocumentFragment();
     for (var h = 0; h < 24; h++) {
       var line = document.createElement('div');
       line.className = 'hour' + (h % 6 === 0 ? ' is-major' : '');
       line.style.top = (h * HOUR_H) + 'px';
-      line.innerHTML = '<span class="hour-label">' + UI.pad(h) + ':00</span>';
+      if (h % LABEL_STEP === 0) {
+        line.innerHTML = '<span class="hour-label">' + UI.pad(h) + ':00</span>';
+      }
       grid.appendChild(line);
-
-      var half = document.createElement('div');
-      half.className = 'halfhour';
-      half.style.top = (h * HOUR_H + HOUR_H / 2) + 'px';
-      grid.appendChild(half);
     }
     root.appendChild(grid);
 
