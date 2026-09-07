@@ -88,7 +88,9 @@
 
     renderQuickBar();
     renderNudge();
-    var result = Timeline.render(UI.el('timeline'), app.day, openEditor);
+    var result = Timeline.render(UI.el('timeline'), app.day, openEditor, function (ts) {
+      openEditor(null, ts);
+    });
     renderDayStats(result);
 
     if (pendingScroll) {
@@ -625,7 +627,11 @@
     return cats[0] && cats[0].id;
   }
 
-  function openEditor(id) {
+  /**
+   * @param {string|null} id            編集する記録のID。新規なら null
+   * @param {number} [prefillStart]     タイムライン上の空欄をタップして開いた場合の開始時刻
+   */
+  function openEditor(id, prefillStart) {
     var log = id ? Store.getLog(id) : null;
     var cats = Store.categories();
     var now = Date.now();
@@ -633,9 +639,12 @@
 
     var catId = log ? log.catId : lastUsedCatId(cats);
     var type = log ? log.type : Store.category(catId).kind;
-    var start = log ? log.start : (isToday ? now : app.day + 9 * UI.HOUR);
+    var start = log ? log.start :
+      (prefillStart !== undefined ? prefillStart : (isToday ? now : app.day + 9 * UI.HOUR));
     var end = log ? log.end : null;
-    var open = log ? (log.type === 'span' && !log.end) : isToday;
+    // 時間帯を指定して開いたときは、具体的な開始〜終了を入力してもらう
+    // （「継続中」の既定チェックは、いま現在から始める場合だけにする）
+    var open = log ? (log.type === 'span' && !log.end) : (prefillStart === undefined && isToday);
 
     var html =
       '<h2>' + (log ? '記録を編集' : '記録を追加') + '</h2>' +

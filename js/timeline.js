@@ -8,8 +8,13 @@ var Timeline = (function () {
   var HOUR_H = 56;          // 1時間あたりの高さ(px) — CSS の --hour-h と合わせる
   var MIN_BLOCK_H = 16;     // ブロックの最小高さ
   var SHORT_BLOCK_H = 34;   // これ未満は1行表示に切り替え
-  var SPAN_AREA = 72;       // 点イベントがある日に期間ブロックが使う幅(%)
   var POINT_H = 26;         // 点・体調イベントの高さ(px)
+
+  // 期間・点・体調を常に3分割の固定幅にする（その日にどれかが無くても
+  // 幅が変わらないようにして、日をまたいだ見比べがしやすいようにする）
+  var SPAN_AREA = 58;       // 期間ブロックの幅(%)
+  var POINT_START = 58, POINT_WIDTH = 21;   // 点レーン
+  var SCALE_START = 79, SCALE_WIDTH = 21;   // 体調レーン
 
   /** 重なり合う期間ブロックを列（レーン）に振り分ける */
   function assignLanes(items) {
@@ -38,16 +43,26 @@ var Timeline = (function () {
   }
 
   /**
-   * @param {HTMLElement} root  描画先
-   * @param {number} dayStart   その日の 0:00 (epoch)
-   * @param {function} onTap    ログ ID を受け取るコールバック
+   * @param {HTMLElement} root      描画先
+   * @param {number} dayStart       その日の 0:00 (epoch)
+   * @param {function} onTap        既存ログのIDを受け取るコールバック
+   * @param {function} [onEmptyTap] 空いている時間帯をタップしたときに時刻(epoch)を渡すコールバック
    */
-  function render(root, dayStart, onTap) {
+  function render(root, dayStart, onTap, onEmptyTap) {
     var dayEnd = UI.addDays(dayStart, 1);
     var now = Date.now();
 
     root.innerHTML = '';
     root.style.height = (24 * HOUR_H) + 'px';
+
+    if (onEmptyTap) {
+      root.onclick = function (e) {
+        if (e.target !== root) return;   // 記録のブロック自体をタップした場合は何もしない
+        var ts = dayStart + (e.offsetY / HOUR_H) * UI.HOUR;
+        ts = Math.round(ts / (5 * UI.MIN)) * (5 * UI.MIN);   // 5分刻みに丸める
+        onEmptyTap(Math.min(Math.max(ts, dayStart), dayEnd - UI.MIN));
+      };
+    }
 
     /* 時刻グリッド */
     var grid = document.createDocumentFragment();
@@ -68,13 +83,11 @@ var Timeline = (function () {
     var logs = Store.logsInRange(dayStart, dayEnd);
     var spans = [];
     var points = [];
+    var scaleMarks = [];
 
     logs.forEach(function (l) {
-      // 点（服薬など）と体調（スケール）は、どちらも右側のレーンに並べる
-      if (l.type === 'point' || l.type === 'scale') {
-        points.push(l);
-        return;
-      }
+      if (l.type === 'point') { points.push(l); return; }
+      if (l.type === 'scale') { scaleMarks.push(l); return; }
       var end = l.end || Math.min(now, dayEnd);
       if (end <= l.start) end = l.start + 60000;
       spans.push({
@@ -86,9 +99,9 @@ var Timeline = (function () {
       });
     });
 
-    /* 期間ブロック */
+    /* 期間ブロック（常に固定幅のレーンを使う） */
     assignLanes(spans);
-    var spanWidth = points.length ? SPAN_AREA : 98;
+    var spanWidth = SPAN_AREA;
 
     spans.forEach(function (s) {
       var cat = Store.category(s.log.catId);
@@ -133,40 +146,46 @@ var Timeline = (function () {
       root.appendChild(b);
     });
 
-    /* 点イベント（重なったら下にずらす） */
-    var lastBottom = -Infinity;
-    points.sort(function (a, b) { return a.start - b.start; });
-    points.forEach(function (p) {
+    /* 点・体調のレーンに、それぞれ固定位置で並べる（重なったら下にずらす） */
+    function renderMarkLane(list, laneStart, laneWidth, buildInner) {
+      var lastBottom = -Infinity;
+      list.sort(function (a, b) { return a.start - b.start; });
+      list.forEach(function (p) {
+        var y = yFor(p.start, dayStart);
+        var top = Math.max(y - POINT_H / 2, lastBottom + 3);
+        lastBottom = top + POINT_H;
+
+        var tick = document.createElement('div');
+        tick.className = 'point-tick';
+        tick.style.top = y + 'px';
+        tick.style.left = SPAN_AREA + '%';
+        tick.style.right = '0';
+        root.appendChild(tick);
+
+        var b = document.createElement('button');
+        b.className = 'point-item';
+        b.style.top = top + 'px';
+        b.style.left = laneStart + '%';
+        b.style.width = 'calc(' + laneWidth + '% - 4px)';
+        b.dataset.id = p.id;
+        b.innerHTML = buildInner(p);
+        b.addEventListener('click', function () { onTap(p.id); });
+        root.appendChild(b);
+      });
+    }
+
+    // レーンの幅が狭いので、時刻は表示しない（左の時刻軸とタップで十分わかる）。
+    // 限られた幅は、何の記録かがひと目でわかる名前・メモに使う。
+    renderMarkLane(points, POINT_START, POINT_WIDTH, function (p) {
       var cat = Store.category(p.catId);
-      var y = yFor(p.start, dayStart);
-      var top = Math.max(y - POINT_H / 2, lastBottom + 3);
-      lastBottom = top + POINT_H;
+      return '<span class="dot" style="background:' + cat.color + '"></span>' +
+        '<span class="pi-name">' + UI.esc(cat.name) + (p.memo ? ' ' + UI.esc(p.memo) : '') + '</span>';
+    });
 
-      var tick = document.createElement('div');
-      tick.className = 'point-tick';
-      tick.style.top = y + 'px';
-      tick.style.left = SPAN_AREA + '%';
-      tick.style.right = '0';
-      root.appendChild(tick);
-
-      var isScale = (p.type === 'scale' && p.scale);
-      var mark;
-      if (isScale) {
-        var si = Store.scaleInfo(p.scale);
-        mark = '<span class="pi-scale" style="background:' + si.color + '">' + si.v + '</span>';
-      } else {
-        mark = '<span class="dot" style="background:' + cat.color + '"></span>';
-      }
-
-      var b = document.createElement('button');
-      b.className = 'point-item' + (isScale ? ' is-scale' : '');
-      b.style.top = top + 'px';
-      b.dataset.id = p.id;
-      b.innerHTML = mark +
-        '<span class="pi-name">' + UI.esc(cat.name) + (p.memo ? ' ' + UI.esc(p.memo) : '') + '</span>' +
-        '<span class="pi-time">' + UI.fmtTime(p.start) + '</span>';
-      b.addEventListener('click', function () { onTap(p.id); });
-      root.appendChild(b);
+    renderMarkLane(scaleMarks, SCALE_START, SCALE_WIDTH, function (p) {
+      var si = Store.scaleInfo(p.scale);
+      return '<span class="pi-scale" style="background:' + si.color + '">' + si.v + '</span>' +
+        (p.memo ? '<span class="pi-name">' + UI.esc(p.memo) + '</span>' : '');
     });
 
     /* 現在時刻ライン */
@@ -177,7 +196,7 @@ var Timeline = (function () {
       root.appendChild(nl);
     }
 
-    return { count: logs.length, spans: spans, points: points };
+    return { count: logs.length, spans: spans, points: points.concat(scaleMarks) };
   }
 
   /** その日の最初の予定（なければ現在時刻）あたりまでスクロール */

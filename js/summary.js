@@ -147,7 +147,13 @@ var Summary = (function () {
         '<div class="daygrid-cols" style="grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' +
           cols + '</div>' +
       '</div>' +
-    '</div>' + dayLabelsHTML(agg);
+    '</div>' +
+    // 日付ラベルの行も、上のグリッドと同じ軸ぶんの余白を入れてから並べる。
+    // こうしないと、目盛りの分だけ列とラベルが横にずれて見える。
+    '<div class="daygrid-row">' +
+      '<div class="daygrid-axis"></div>' +
+      dayLabelsHTML(agg) +
+    '</div>';
   }
 
   /** 体調の推移。縦が1〜5、横が期間 */
