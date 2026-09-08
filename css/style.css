@@ -96,6 +96,11 @@ html, body {
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: none;
 }
+/* body を縦のflexにしておき、画面がタイムラインの内容より高いときは
+   その余りぶんを main（さらにタイムライン内では .timeline-wrap）が
+   吸収して埋める。内容が画面より高い場合は今まで通り自然に伸びて
+   ページ全体がスクロールする（min-heightなので高さを固定しない） */
+body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 
 /* 数字は計器のように揃える */
 .num, .row-val, .rc-time, .sb-meta, .hour-label,
@@ -141,12 +146,24 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
 #summaryDatebar { padding-top: 10px; }
 
 /* ── Main ──────────────────────────────── */
-main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
+main {
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px);
+  flex: 1; display: flex; flex-direction: column;
+}
 .view { animation: fade .16s ease; }
+.view[hidden] { display: none; }
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 @media (prefers-reduced-motion: reduce) {
   .view, .sheet, .toast { animation: none !important; }
 }
+
+/* タイムライン画面だけ、画面が内容より高いときに余ったぶんを
+   ヘッダーとスケジュールの間・スケジュールとドックの間に均等に配分する
+   （固定pxの余白だと、端末によって隙間が余ったり足りなかったりするため） */
+#view-timeline { display: flex; flex-direction: column; flex: 1; }
+/* IDセレクタは .view[hidden] より詳細度が高く上書きしてしまうため、
+   非表示のときはこちらを明示しておく（他のタブと重なって表示されるのを防ぐ） */
+#view-timeline[hidden] { display: none; }
 
 /* ── クイック記録 ──────────────────────── */
 .quickbar {
@@ -242,9 +259,12 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 
 /* ── Timeline ──────────────────────────── */
-.timeline-wrap { padding: 8px 14px 0; }
+.timeline-wrap {
+  padding: 8px 14px 0;
+  flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;
+}
 .timeline {
-  position: relative;
+  position: relative; flex-shrink: 0;
   margin-left: var(--gutter-w);
   border-left: 1px solid var(--line);
 }
