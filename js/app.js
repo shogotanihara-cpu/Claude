@@ -177,19 +177,14 @@
   }
 
   /**
-   * ワンタップで記録するボタン列。期間（開始/終了を経過時間つきで示す必要が
-   * あるもの）だけをここに残し、点・体調は下部のドックに移した。
+   * ワンタップで記録するボタン列（期間の開始/終了。経過時間つきで示す必要が
+   * あるもの）。ドックの「＋」の隣、点ボタンとの間に並べる。
    */
   function renderQuickBar() {
-    var box = UI.el('quickBar');
+    var box = UI.el('dockSpanQbs');
     var cats = Store.quickCategories().filter(function (c) { return c.kind === 'span'; });
 
-    if (!cats.length) {
-      box.innerHTML = '';
-      box.hidden = true;
-      return;
-    }
-    box.hidden = false;
+    if (!cats.length) { box.innerHTML = ''; return; }
 
     box.innerHTML = cats.map(function (c) {
       var run = Store.runningOf(c.id);
@@ -581,8 +576,8 @@
         '<div class="card-title">カテゴリ</div>' + cats +
         '<div class="btn-row"><button class="btn btn-sub" id="addCatBtn">カテゴリを追加</button></div>' +
         '<p class="hint" style="margin-top:12px">点・体調はタイムライン下部のボタンから、' +
-        'いつでも1回のタップで記録できます。「ワンタップ」にした期間カテゴリは、' +
-        'タイムライン上部に開始/終了ボタンとして出ます。</p>' +
+        'いつでも1回のタップで記録できます。「ワンタップ」にした期間カテゴリも、' +
+        '同じくタイムライン下部に開始/終了ボタンとして出ます。</p>' +
       '</div>' +
 
       reminderCardHTML() +
@@ -608,7 +603,7 @@
       '<div class="card">' +
         '<div class="card-title">使い方</div>' +
         '<p class="hint">' +
-        '・上部のボタンで期間（睡眠など）の開始／終了を、タイムライン下部のボタンで' +
+        '・タイムライン下部のボタンで、期間（睡眠など）の開始／終了、' +
         '点（服薬など）・体調をワンタップで記録できます。<br>' +
         '・「期間」は睡眠のように長さがあるもの、「点」は服薬のようにその瞬間の記録、' +
         '「体調」は1〜5で今の状態を残すときに使います。<br>' +
@@ -1071,7 +1066,7 @@
       '</div>' +
       '<div class="field" id="quickField">' +
         '<label class="check"><input type="checkbox" id="cQuick"' + (cat.quick ? ' checked' : '') + '>' +
-        'タイムライン上部に開始/終了ボタンを出す</label>' +
+        'タイムライン下部に開始/終了ボタンを出す</label>' +
         '<p class="hint" style="margin-top:6px">点・体調はこの設定に関わらず、' +
         'タイムライン下部から常にワンタップで記録できます。</p></div>' +
       '<button class="btn" id="cSave">保存</button>' +
