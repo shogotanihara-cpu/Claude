@@ -13,9 +13,11 @@ var Summary = (function () {
     var now = Date.now();
     var days = Math.round((to - from) / UI.DAY);
 
+    // logs も日ごとに集めておく。dayGridHTML() が同じ範囲を Store.logsInRange で
+    // 引き直すと、期間が長いとき（3ヶ月など）全ログを日数ぶん繰り返し走査してしまうため。
     var dayList = [];
     for (var i = 0; i < days; i++) {
-      dayList.push({ start: UI.addDays(from, i), byCat: {}, total: 0, points: 0 });
+      dayList.push({ start: UI.addDays(from, i), byCat: {}, total: 0, points: 0, logs: [] });
     }
 
     var totals = {};    // catId → { ms, count, scaleSum, scaleCount }
@@ -29,7 +31,7 @@ var Summary = (function () {
       // 点と体調は「その時点の記録」なので、長さを持たせない
       if (l.type === 'point' || l.type === 'scale') {
         var di = Math.round((UI.startOfDay(l.start) - from) / UI.DAY);
-        if (dayList[di]) dayList[di].points++;
+        if (dayList[di]) { dayList[di].points++; dayList[di].logs.push(l); }
         if (l.type === 'scale' && l.scale) {
           totals[l.catId].scaleSum += l.scale;
           totals[l.catId].scaleCount++;
@@ -53,6 +55,7 @@ var Summary = (function () {
         if (dayList[idx]) {
           dayList[idx].byCat[l.catId] = (dayList[idx].byCat[l.catId] || 0) + slice;
           dayList[idx].total += slice;
+          dayList[idx].logs.push(l);
         }
         cursor = dayEnd;
       }
@@ -122,7 +125,7 @@ var Summary = (function () {
 
     var cols = agg.days.map(function (d) {
       var dayStart = d.start, dayEnd = UI.addDays(dayStart, 1);
-      var marks = Store.logsInRange(dayStart, dayEnd).map(function (l) {
+      var marks = d.logs.map(function (l) {
         if (l.type === 'span') {
           var end = Math.min(l.end || now, dayEnd);
           var start = Math.max(l.start, dayStart);

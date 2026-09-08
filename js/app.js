@@ -966,9 +966,15 @@
 
     Store.onChange(render);
 
-    // 記録中の経過時間を1分ごとに更新
+    // 記録中の経過時間を1分ごとに更新。
+    // ただしタイムラインをドラッグ操作中に再描画すると、その場でリスナーが
+    // 付け替わってジェスチャーが黙って中断されてしまうので、その間はスキップする
+    // （次の周期でまた試すだけなので、経過時間の表示が少し遅れる程度で済む）
     setInterval(function () {
-      if (app.tab === 'timeline' && Store.runningLogs().length) renderTimeline();
+      if (app.tab !== 'timeline' || !Store.runningLogs().length) return;
+      var tl = UI.el('timeline');
+      if (tl && tl.dataset.tlBusy) return;
+      renderTimeline();
     }, 60000);
   }
 

@@ -69,6 +69,7 @@ var Timeline = (function () {
     // root（#timeline）は毎回作り直さず使い回すので、innerHTML を空にしても
     // 前回 addEventListener したハンドラは残ったままになる。付け直す前に必ず外す。
     if (root._tlCleanup) { root._tlCleanup(); root._tlCleanup = null; }
+    delete root.dataset.tlBusy;
 
     if (onEmptyTap || onDragCreate) {
       var DRAG_THRESHOLD = 8;   // これ未満の移動はタップとして扱う(px)
@@ -89,10 +90,12 @@ var Timeline = (function () {
         if (e.target !== root) return;   // 記録のブロック自体を押した場合は何もしない
         var rect = root.getBoundingClientRect();
         var xPct = (e.clientX - rect.left) / rect.width * 100;
-        if (xPct >= SPAN_AREA) return;   // 点・体調のレーンではドラッグ作成はしない
         drag = {
           rect: rect, pointerId: e.pointerId, moved: false,
-          startOffsetY: e.clientY - rect.top
+          startOffsetY: e.clientY - rect.top,
+          // 点・体調のレーンではドラッグ作成はしない（が、タップでの新規作成は
+          // レーンを問わず有効にしたいので、ここでは pointerdown 自体は受け付ける）
+          canDrag: xPct < SPAN_AREA
         };
       };
 
@@ -102,9 +105,10 @@ var Timeline = (function () {
         if (!drag.moved && Math.abs(curOffsetY - drag.startOffsetY) < DRAG_THRESHOLD) return;
         if (!drag.moved) {
           drag.moved = true;
+          root.dataset.tlBusy = '1';   // ドラッグ中は他所からの再描画で中断されたくない印
           try { root.setPointerCapture(drag.pointerId); } catch (err) { /* noop */ }
         }
-        if (!onDragCreate) return;
+        if (!onDragCreate || !drag.canDrag) return;
         e.preventDefault();
 
         var r = range(drag.startOffsetY, curOffsetY);
@@ -122,6 +126,7 @@ var Timeline = (function () {
       };
 
       var onPointerUp = function (e) {
+        delete root.dataset.tlBusy;
         if (!drag || e.pointerId !== drag.pointerId) { drag = null; return; }
         if (drag.previewEl) drag.previewEl.remove();
 
@@ -130,7 +135,7 @@ var Timeline = (function () {
             var ts = roundTo5Min(dayStart + (drag.startOffsetY / HOUR_H) * UI.HOUR);
             onEmptyTap(Math.min(Math.max(ts, dayStart), dayEnd - UI.MIN));
           }
-        } else if (onDragCreate) {
+        } else if (onDragCreate && drag.canDrag) {
           var curOffsetY = e.clientY - drag.rect.top;
           var r = range(drag.startOffsetY, curOffsetY);
           onDragCreate(r.start, r.end, e.clientX, e.clientY);
@@ -139,6 +144,7 @@ var Timeline = (function () {
       };
 
       var onPointerCancel = function () {
+        delete root.dataset.tlBusy;
         if (drag && drag.previewEl) drag.previewEl.remove();
         drag = null;
       };
