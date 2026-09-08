@@ -3,13 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>ログ - 行動記録</title>
-<meta name="description" content="1日の行動をバーチカルタイムラインで記録・可視化するアプリ">
-<!-- 個人用アプリのため検索結果に出さない（ブログとは別物として扱う） -->
-<meta name="robots" content="noindex, nofollow">
+<title>ログ - 体調と暮らしの記録</title>
+<meta name="description" content="睡眠・服薬・体調を1日のタイムラインで記録して、受診のときに1枚のレポートとして持っていけるアプリ。記録はお使いの端末の中だけに保存されます。">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+
+<!-- LINEなどでURLを共有したときの見え方 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="ログ - 体調と暮らしの記録">
+<meta property="og:description" content="睡眠・服薬・体調を1日のタイムラインで記録して、受診のときに1枚のレポートとして持っていけるアプリ。記録はお使いの端末の中だけに保存されます。">
+<meta property="og:url" content="https://app.oshihitsuji.jp/">
+<meta property="og:image" content="https://app.oshihitsuji.jp/icons/icon-512.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -35,6 +42,7 @@
 
   <!-- ── タイムライン ── -->
   <section class="view" id="view-timeline" data-view="timeline">
+    <div id="installTip"></div>
     <div id="nudgeBox"></div>
     <div id="runningBox"></div>
     <div class="daystats" id="dayStats"></div>

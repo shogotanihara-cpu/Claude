@@ -80,6 +80,7 @@
 
     renderQuickBar();
     renderDock();
+    renderInstallTip();
     renderNudge();
     var result = Timeline.render(
       UI.el('timeline'), app.day, openEditor,
@@ -202,6 +203,66 @@
 
     box.querySelectorAll('[data-quick]').forEach(function (b) {
       b.addEventListener('click', function () { quickTap(b.dataset.quick); });
+    });
+  }
+
+  /* ═════════ ホーム画面への追加をすすめる案内 ═════════ */
+
+  /* この端末だけの表示設定なので、記録本体(バックアップ対象)とは別に持つ。
+     別の端末で復元したときに「追加済み」と誤解されないようにするため。 */
+  var INSTALL_TIP_KEY = 'actionlog.installtip';
+
+  function installTipDismissed() {
+    try { return localStorage.getItem(INSTALL_TIP_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function dismissInstallTip() {
+    try { localStorage.setItem(INSTALL_TIP_KEY, '1'); } catch (e) { /* noop */ }
+  }
+
+  /** ホーム画面から起動されている（インストール済み）か */
+  function isStandalone() {
+    if (window.navigator.standalone === true) return true;   // iOS Safari
+    return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  }
+
+  function isIOS() {
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return true;
+    // iPadOS 13以降は Mac を名乗るので、タッチできる Mac は iPad とみなす
+    return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  }
+
+  /**
+   * iOSのSafariは「しばらく開かないサイトの保存データを消す」ため、
+   * ホーム画面に追加していないと記録ごと失われることがある。
+   * 追加済み（ホーム画面から起動）なら、この案内は出さない。
+   */
+  function renderInstallTip() {
+    var box = UI.el('installTip');
+    if (isStandalone() || installTipDismissed()) { box.innerHTML = ''; return; }
+
+    var title, body;
+    if (isIOS()) {
+      title = 'ホーム画面に追加してください';
+      body = 'Safariの共有ボタンから「ホーム画面に追加」を選んでください。' +
+             '追加しないまましばらく開かないと、iPhoneがこのアプリの記録を消してしまうことがあります。';
+    } else {
+      title = 'ホーム画面に追加できます';
+      body = 'ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選ぶと、' +
+             'アプリのように開けて、記録も消えにくくなります。';
+    }
+
+    box.innerHTML = '<div class="nudge">' +
+      '<div class="nudge-main">' +
+        '<div class="nudge-title">' + title + '</div>' +
+        '<div class="tip-body">' + body + '</div>' +
+      '</div>' +
+      '<button class="nudge-close" id="installTipClose" aria-label="閉じる">×</button>' +
+    '</div>';
+
+    UI.el('installTipClose').addEventListener('click', function () {
+      dismissInstallTip();
+      renderInstallTip();
     });
   }
 
@@ -588,7 +649,9 @@
         '<div class="card-title">データ</div>' +
         '<p class="hint">記録はこの端末のブラウザ内だけに保存されます。' +
         '機種変更やブラウザのデータ削除で消えるため、ときどきバックアップを保存してください。' +
-        'バックアップのファイルは、新しい端末で「復元」すればそのまま引き継げます。</p>' +
+        'バックアップのファイルは、新しい端末で「復元」すればそのまま引き継げます。<br>' +
+        '<b>iPhoneをお使いの場合は、Safariの共有ボタンから「ホーム画面に追加」をしてください。</b>' +
+        '追加せずに使っていると、しばらく開かなかっただけでiPhoneが記録を消してしまうことがあります。</p>' +
         '<div class="btn-row">' +
           '<button class="btn btn-sub" id="backupBtn">バックアップ</button>' +
           '<button class="btn btn-sub" id="restoreBtn">復元</button>' +
