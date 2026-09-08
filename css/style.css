@@ -117,16 +117,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   border-bottom: 1px solid var(--line);
   padding-top: var(--safe-t);
 }
-.appbar-inner {
-  display: flex; align-items: center; justify-content: space-between;
-  height: 44px; padding: 0 16px;
-}
-.appbar-title {
-  font-size: 16px; font-weight: 700; letter-spacing: .03em;
-}
-.appbar-actions { display: flex; gap: 8px; }
-
-.datebar { display: flex; align-items: center; gap: 2px; padding: 0 10px 9px; }
+/* 「タイムライン」「サマリー」等の見出しは置かない。現在地は下のタブバーの
+   強調表示だけで示す（見出し1行ぶんの高さを、圧縮した1日表示に使うため） */
+.datebar { display: flex; align-items: center; gap: 2px; padding: 10px 10px 9px; }
 .iconbtn {
   width: 34px; height: 34px; border-radius: var(--r-sm);
   font-size: 20px; line-height: 1; color: var(--text-dim);
@@ -135,7 +128,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
 .iconbtn:active { background: var(--surface-2); }
 .datelabel {
   position: relative; flex: 1; text-align: center;
-  font-size: 14px; font-weight: 600; letter-spacing: .02em;
+  font-size: 15px; font-weight: 700; letter-spacing: .02em;
   padding: 6px 0; border-radius: var(--r-sm);
 }
 .datelabel:active { background: var(--surface-2); }
@@ -463,6 +456,7 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   box-shadow: var(--shadow); z-index: 25;
   display: grid; place-items: center;
 }
+.fab[hidden] { display: none; }   /* display:grid が [hidden] の既定を上書きしてしまうため明示する */
 .fab:active { transform: scale(.93); }
 
 .tabbar {
@@ -475,12 +469,24 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   border-top: 1px solid var(--line);
 }
 .tab {
+  position: relative;
   flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 3px; font-size: 9.5px; color: var(--text-faint);
   letter-spacing: .04em;
 }
-.tab-ico { font-size: 16px; line-height: 1; }
-.tab.is-on { color: var(--accent); }
+.tab-ico {
+  font-size: 16px; line-height: 1; width: 30px; height: 22px;
+  border-radius: 999px; display: grid; place-items: center;
+  transition: background .15s ease;
+}
+/* 上部の見出しを廃したぶん、今どこを見ているかはここだけで分かるようにする */
+.tab.is-on { color: var(--accent); font-weight: 700; }
+.tab.is-on .tab-ico { background: var(--accent-soft); }
+.tab.is-on::after {
+  content: ""; position: absolute; top: 2px; left: 50%;
+  transform: translateX(-50%); width: 16px; height: 2.5px;
+  border-radius: 999px; background: var(--accent);
+}
 
 /* ── Sheet ─────────────────────────────── */
 .scrim {
