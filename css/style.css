@@ -36,7 +36,7 @@
   --r-lg: 16px;
 
   --tabbar-h: 56px;
-  --hour-h: 56px;
+  --hour-h: 20px;   /* js/timeline.js の HOUR_H と合わせる */
   --gutter-w: 44px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -98,7 +98,7 @@ html, body {
 }
 
 /* 数字は計器のように揃える */
-.num, .row-val, .rc-time, .pi-time, .sb-meta, .hour-label,
+.num, .row-val, .rc-time, .sb-meta, .hour-label,
 .daystat b, .qb-meta, .stat-v, .rep-v {
   font-variant-numeric: tabular-nums;
   letter-spacing: .01em;
@@ -262,6 +262,7 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 .hour {
   position: absolute; left: 0; right: 0; height: var(--hour-h);
   border-top: 1px solid var(--line);
+  pointer-events: none;   /* 罫線は装飾。下の空欄タップをふさがないようにする */
 }
 .hour.is-major { border-top-color: var(--line-strong); }
 .hour-label {
@@ -269,11 +270,6 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   width: calc(var(--gutter-w) - 9px); text-align: right;
   font-size: 10px; color: var(--text-faint); font-weight: 500;
 }
-.halfhour {
-  position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1px solid var(--line); opacity: .45;
-}
-
 .now-line {
   position: absolute; left: -5px; right: 0; height: 0;
   border-top: 1.5px solid var(--danger); z-index: 6; pointer-events: none;
@@ -302,23 +298,34 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 .span-block:active { filter: brightness(1.1); }
 
 .point-item {
-  position: absolute; right: 0; display: flex; align-items: center; gap: 6px;
-  font-size: 11px; padding: 3px 9px 3px 6px; border-radius: 999px;
+  /* left/width は 点・体調それぞれの固定レーンに合わせて JS 側で指定する */
+  position: absolute; display: flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 3px 8px 3px 5px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--line);
   box-shadow: var(--shadow-sm); white-space: nowrap;
-  max-width: 58%; overflow: hidden; text-align: left;
+  overflow: hidden; text-align: left;
 }
 .point-item .pi-name {
-  font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-.point-item .pi-time { color: var(--text-faint); font-size: 10px; }
 /* 体調（スケール）は値を丸で示す */
-.point-item.is-scale { padding-left: 4px; }
 .pi-scale {
   width: 18px; height: 18px; border-radius: 50%; flex: 0 0 auto;
   display: grid; place-items: center;
   font-size: 10px; font-weight: 700; color: #fff;
 }
+.drag-preview {
+  position: absolute; left: 0; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 1.5px dashed var(--accent);
+  pointer-events: none; overflow: hidden;
+}
+.drag-preview-label {
+  position: absolute; top: 2px; left: 6px; right: 6px;
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 .point-tick {
   position: absolute; height: 0; border-top: 1px dotted var(--line-strong);
   pointer-events: none; opacity: .8;
@@ -378,7 +385,11 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
   border-radius: 50%; box-shadow: 0 0 0 1px var(--surface);
 }
 
-.chart-labels { display: grid; margin-top: 7px; overflow: hidden; }
+/* .daygrid-cols と同じ gap / padding にして、列とラベルの位置を正確に揃える */
+.chart-labels {
+  display: grid; gap: 2px; padding: 0 1px; margin-top: 7px; overflow: hidden;
+  flex: 1; min-width: 0;
+}
 .chart-label {
   min-width: 0; text-align: center; font-size: 9px; color: var(--text-faint);
   white-space: nowrap; font-variant-numeric: tabular-nums;
@@ -420,6 +431,18 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 }
 .chip.is-on { border-color: transparent; font-weight: 700; }
 .chip.is-on .dot { display: none; }
+
+/* ── ドラッグ作成のカテゴリ選択（軽いポップオーバー。入力画面には遷移しない） ── */
+.drag-scrim { position: fixed; inset: 0; z-index: 45; background: rgba(8, 11, 16, .32); }
+.drag-pop {
+  position: fixed; z-index: 46; max-width: calc(100vw - 20px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 12px 14px; animation: fade .12s ease;
+}
+.drag-pop-time {
+  font-size: 12px; font-weight: 700; color: var(--text-dim); margin-bottom: 9px;
+}
+.drag-pop-chips { display: flex; flex-wrap: wrap; gap: 7px; max-width: 260px; }
 
 /* ── Search ────────────────────────────── */
 .searchbar { padding: 12px 14px 2px; }

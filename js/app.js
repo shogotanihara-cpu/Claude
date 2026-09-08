@@ -88,7 +88,11 @@
 
     renderQuickBar();
     renderNudge();
-    var result = Timeline.render(UI.el('timeline'), app.day, openEditor);
+    var result = Timeline.render(
+      UI.el('timeline'), app.day, openEditor,
+      function (ts) { openEditor(null, ts); },
+      function (startTs, endTs, x, y) { openDragCategoryPicker(startTs, endTs, x, y); }
+    );
     renderDayStats(result);
 
     if (pendingScroll) {
@@ -158,6 +162,50 @@
     UI.el('nudgeClose').addEventListener('click', function () {
       Notify.dismissToday();
       renderNudge();
+    });
+  }
+
+  /**
+   * タイムラインをドラッグして期間を選んだ直後に出す、軽いカテゴリ選択。
+   * 入力画面(シート)には遷移せず、チップを1回タップするだけで記録を確定する。
+   */
+  function openDragCategoryPicker(startTs, endTs, x, y) {
+    var cats = Store.categories().filter(function (c) { return c.kind === 'span'; });
+    if (!cats.length) { openEditor(null, startTs); return; }   // 期間カテゴリが無ければ通常の入力へ
+
+    var scrim = document.createElement('div');
+    scrim.className = 'drag-scrim';
+
+    var pop = document.createElement('div');
+    pop.className = 'drag-pop';
+    pop.innerHTML =
+      '<div class="drag-pop-time">' + UI.fmtTime(startTs) + '–' + UI.fmtTime(endTs) +
+        '・' + UI.fmtDuration(endTs - startTs) + '</div>' +
+      '<div class="drag-pop-chips">' + cats.map(function (c) {
+        return '<button class="chip" data-cat="' + c.id + '" style="background:' + c.color +
+          ';color:' + UI.textOn(c.color) + '">' + UI.esc(c.name) + '</button>';
+      }).join('') + '</div>';
+
+    document.body.appendChild(scrim);
+    document.body.appendChild(pop);
+
+    // 指を離した位置の近くに、画面外へはみ出さないよう置く
+    var margin = 10;
+    var rect = pop.getBoundingClientRect();
+    var left = Math.min(Math.max(x - rect.width / 2, margin), window.innerWidth - rect.width - margin);
+    var top = Math.min(Math.max(y - rect.height - 18, margin), window.innerHeight - rect.height - margin);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+
+    function close() { scrim.remove(); pop.remove(); }
+    scrim.addEventListener('click', close);
+    pop.querySelectorAll('[data-cat]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var cat = Store.category(b.dataset.cat);
+        Store.addLog({ catId: cat.id, type: 'span', start: startTs, end: endTs, memo: '', scale: null });
+        UI.toast(cat.name + 'を記録しました');
+        close();
+      });
     });
   }
 
@@ -625,7 +673,11 @@
     return cats[0] && cats[0].id;
   }
 
-  function openEditor(id) {
+  /**
+   * @param {string|null} id            編集する記録のID。新規なら null
+   * @param {number} [prefillStart]     タイムライン上の空欄をタップして開いた場合の開始時刻
+   */
+  function openEditor(id, prefillStart) {
     var log = id ? Store.getLog(id) : null;
     var cats = Store.categories();
     var now = Date.now();
@@ -633,9 +685,12 @@
 
     var catId = log ? log.catId : lastUsedCatId(cats);
     var type = log ? log.type : Store.category(catId).kind;
-    var start = log ? log.start : (isToday ? now : app.day + 9 * UI.HOUR);
+    var start = log ? log.start :
+      (prefillStart !== undefined ? prefillStart : (isToday ? now : app.day + 9 * UI.HOUR));
     var end = log ? log.end : null;
-    var open = log ? (log.type === 'span' && !log.end) : isToday;
+    // 時間帯を指定して開いたときは、具体的な開始〜終了を入力してもらう
+    // （「継続中」の既定チェックは、いま現在から始める場合だけにする）
+    var open = log ? (log.type === 'span' && !log.end) : (prefillStart === undefined && isToday);
 
     var html =
       '<h2>' + (log ? '記録を編集' : '記録を追加') + '</h2>' +
@@ -911,9 +966,15 @@
 
     Store.onChange(render);
 
-    // 記録中の経過時間を1分ごとに更新
+    // 記録中の経過時間を1分ごとに更新。
+    // ただしタイムラインをドラッグ操作中に再描画すると、その場でリスナーが
+    // 付け替わってジェスチャーが黙って中断されてしまうので、その間はスキップする
+    // （次の周期でまた試すだけなので、経過時間の表示が少し遅れる程度で済む）
     setInterval(function () {
-      if (app.tab === 'timeline' && Store.runningLogs().length) renderTimeline();
+      if (app.tab !== 'timeline' || !Store.runningLogs().length) return;
+      var tl = UI.el('timeline');
+      if (tl && tl.dataset.tlBusy) return;
+      renderTimeline();
     }, 60000);
   }
 
