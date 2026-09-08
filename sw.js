@@ -1,7 +1,7 @@
 /* Service Worker — オフラインで開けるようにアプリ本体をキャッシュする。
    記録データはキャッシュではなく localStorage に入っているため、ここでは扱わない。 */
 
-var CACHE = 'actionlog-v3';
+var CACHE = 'actionlog-v4';
 
 var ASSETS = [
   './',
@@ -39,11 +39,14 @@ self.addEventListener('activate', function (e) {
   );
 });
 
-/* network-first: 更新を取りに行き、オフラインならキャッシュを返す */
+/* network-first: 更新を取りに行き、オフラインならキャッシュを返す。
+   { cache: 'no-store' } を明示しないと、GitHub Pages側のCache-Controlに
+   従ってブラウザの通常のHTTPキャッシュから返ってしまい、「ネットワーク優先」の
+   つもりでも実際には数分〜古い内容を掴み続けてしまうことがあるため。 */
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request).then(function (res) {
+    fetch(e.request, { cache: 'no-store' }).then(function (res) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
       return res;
