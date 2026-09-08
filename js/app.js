@@ -56,7 +56,8 @@
       b.classList.toggle('is-on', b.dataset.tab === tab);
     });
     UI.el('datebar').classList.toggle('is-hidden', tab !== 'timeline');
-    UI.el('fab').hidden = (tab === 'settings');
+    // タイムラインでは「＋」をタイムライン下部のドックに出すので、浮き出るFABは隠す
+    UI.el('fab').hidden = (tab === 'settings' || tab === 'timeline');
     window.scrollTo(0, 0);
     render();
     if (tab === 'timeline') scrollTimeline();
@@ -78,6 +79,7 @@
     UI.el('dateText').textContent = UI.fmtDateFull(app.day);
 
     renderQuickBar();
+    renderDock();
     renderNudge();
     var result = Timeline.render(
       UI.el('timeline'), app.day, openEditor,
@@ -174,10 +176,13 @@
     );
   }
 
-  /** ワンタップで記録するボタン列 */
+  /**
+   * ワンタップで記録するボタン列。期間（開始/終了を経過時間つきで示す必要が
+   * あるもの）だけをここに残し、点・体調は下部のドックに移した。
+   */
   function renderQuickBar() {
     var box = UI.el('quickBar');
-    var cats = Store.quickCategories();
+    var cats = Store.quickCategories().filter(function (c) { return c.kind === 'span'; });
 
     if (!cats.length) {
       box.innerHTML = '';
@@ -187,26 +192,84 @@
     box.hidden = false;
 
     box.innerHTML = cats.map(function (c) {
-      if (c.kind === 'span') {
-        var run = Store.runningOf(c.id);
-        if (run) {
-          return '<button class="qb is-live" data-quick="' + c.id + '" style="background:' +
-            c.color + ';color:' + UI.textOn(c.color) + '">' +
-            '<span class="qb-dot"></span>' + UI.esc(c.name) +
-            '<span class="qb-meta">' + UI.fmtDuration(Date.now() - run.start) + '</span>' +
-            '</button>';
-        }
-        return '<button class="qb" data-quick="' + c.id + '">' +
-          '<span class="qb-dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
-          '<span class="qb-sign">開始</span></button>';
+      var run = Store.runningOf(c.id);
+      if (run) {
+        return '<button class="qb is-live" data-quick="' + c.id + '" style="background:' +
+          c.color + ';color:' + UI.textOn(c.color) + '">' +
+          '<span class="qb-dot"></span>' + UI.esc(c.name) +
+          '<span class="qb-meta">' + UI.fmtDuration(Date.now() - run.start) + '</span>' +
+          '</button>';
       }
       return '<button class="qb" data-quick="' + c.id + '">' +
         '<span class="qb-dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
-        '<span class="qb-sign">' + (c.kind === 'scale' ? '記録' : '＋') + '</span></button>';
+        '<span class="qb-sign">開始</span></button>';
     }).join('');
 
     box.querySelectorAll('[data-quick]').forEach(function (b) {
       b.addEventListener('click', function () { quickTap(b.dataset.quick); });
+    });
+  }
+
+  /**
+   * タイムラインの下、タブバーとの間に置く記録ボタン。期間(＋)・点・体調の
+   * 3つを、上の3レーンとそれぞれ縦に揃えて並べる。
+   * 点・体調はカテゴリが1つだけならそのまま記録、複数あれば軽い選択を挟む。
+   */
+  function renderDockZone(kind, elId) {
+    var el = UI.el(elId);
+    var cats = Store.quickCategories().filter(function (c) { return c.kind === kind; });
+
+    if (!cats.length) { el.innerHTML = ''; return; }
+
+    if (cats.length === 1) {
+      var c = cats[0];
+      el.innerHTML = '<button class="dockbtn" data-quick="' + c.id + '">' +
+        '<span class="dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) + '</button>';
+      el.querySelector('[data-quick]').addEventListener('click', function () { quickTap(c.id); });
+      return;
+    }
+
+    var label = kind === 'scale' ? '体調を記録' : '点を記録';
+    el.innerHTML = '<button class="dockbtn" id="dockPick-' + kind + '">' +
+      '<span class="dot" style="background:var(--text-faint)"></span>' + UI.esc(label) + '</button>';
+    el.querySelector('button').addEventListener('click', function (e) {
+      var r = e.currentTarget.getBoundingClientRect();
+      openQuickKindPicker(kind, r.left + r.width / 2, r.top);
+    });
+  }
+
+  function renderDock() {
+    renderDockZone('point', 'dockPoint');
+    renderDockZone('scale', 'dockScale');
+  }
+
+  /** 点・体調のワンタップ用カテゴリが複数あるときだけ出す、軽いカテゴリ選択 */
+  function openQuickKindPicker(kind, x, y) {
+    var cats = Store.quickCategories().filter(function (c) { return c.kind === kind; });
+    if (!cats.length) return;
+
+    var scrim = document.createElement('div');
+    scrim.className = 'drag-scrim';
+    var pop = document.createElement('div');
+    pop.className = 'drag-pop';
+    pop.innerHTML = '<div class="drag-pop-chips">' + cats.map(function (c) {
+      return '<button class="chip" data-cat="' + c.id + '" style="background:' + c.color +
+        ';color:' + UI.textOn(c.color) + '">' + UI.esc(c.name) + '</button>';
+    }).join('') + '</div>';
+    document.body.appendChild(scrim);
+    document.body.appendChild(pop);
+
+    var margin = 10;
+    var rect = pop.getBoundingClientRect();
+    var left = Math.min(Math.max(x - rect.width / 2, margin), window.innerWidth - rect.width - margin);
+    var top = Math.min(Math.max(y - rect.height - 14, margin), window.innerHeight - rect.height - margin);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+
+    function close() { scrim.remove(); pop.remove(); }
+    scrim.addEventListener('click', close);
+    pop.querySelectorAll('[data-cat]').forEach(function (b) {
+      b.addEventListener('click', function () { quickTap(b.dataset.cat); close(); });
     });
   }
 
@@ -476,7 +539,8 @@
       '<div class="card">' +
         '<div class="card-title">カテゴリ</div>' + cats +
         '<div class="btn-row"><button class="btn btn-sub" id="addCatBtn">カテゴリを追加</button></div>' +
-        '<p class="hint" style="margin-top:12px">「ワンタップ」にしたカテゴリは、タイムラインの上部に出て1回のタップで記録できます。</p>' +
+        '<p class="hint" style="margin-top:12px">「ワンタップ」にしたカテゴリは1回のタップで記録できます' +
+        '（期間はタイムライン上部、点・体調はタイムライン下部に出ます）。</p>' +
       '</div>' +
 
       reminderCardHTML() +
@@ -502,7 +566,8 @@
       '<div class="card">' +
         '<div class="card-title">使い方</div>' +
         '<p class="hint">' +
-        '・上部のボタンで、睡眠の開始／終了、服薬、体調をワンタップで記録できます。<br>' +
+        '・上部のボタンで期間（睡眠など）の開始／終了を、タイムライン下部のボタンで' +
+        '点（服薬など）・体調をワンタップで記録できます。<br>' +
         '・「期間」は睡眠のように長さがあるもの、「点」は服薬のようにその瞬間の記録、' +
         '「体調」は1〜5で今の状態を残すときに使います。<br>' +
         '・終了時刻を空にすると「継続中」として記録され、あとから終了できます。<br>' +
@@ -964,7 +1029,7 @@
       '</div>' +
       '<div class="field">' +
         '<label class="check"><input type="checkbox" id="cQuick"' + (cat.quick ? ' checked' : '') + '>' +
-        'タイムライン上部のワンタップ記録に出す</label></div>' +
+        'ワンタップ記録に出す（期間は上部、点・体調は下部）</label></div>' +
       '<button class="btn" id="cSave">保存</button>' +
       (id ? '<div class="btn-row"><button class="btn btn-danger" id="cDel">削除</button></div>' : '') +
       '<div class="btn-row"><button class="btn btn-sub" id="cCancel">キャンセル</button></div>';
@@ -1043,6 +1108,7 @@
     UI.el('dateLabel').addEventListener('click', openCalendarSheet);
 
     UI.el('fab').addEventListener('click', function () { openEditor(null); });
+    UI.el('dockFab').addEventListener('click', function () { openEditor(null); });
     UI.el('scrim').addEventListener('click', UI.closeSheet);
 
     UI.el('rangeSeg').addEventListener('click', function (e) {
