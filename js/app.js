@@ -76,7 +76,6 @@
 
   function renderTimeline() {
     UI.el('dateText').textContent = UI.fmtDateFull(app.day);
-    UI.el('datePicker').value = UI.dateInputValue(app.day);
 
     renderQuickBar();
     renderNudge();
@@ -91,6 +90,88 @@
       pendingScroll = false;
       Timeline.scrollToRelevant(app.day, result.spans, result.points);
     }
+  }
+
+  /**
+   * 日付ラベルをタップすると開く、月表示のカレンダー。
+   * OS標準の <input type="date"> はiOSだとスピナー式で「カレンダーから選ぶ」
+   * 感覚と違うため、下からのシートに自前でマス目を描く。
+   */
+  function openCalendarSheet() {
+    var viewMonth = UI.startOfMonth(app.day);
+    var todayStart = UI.startOfDay(Date.now());
+
+    function monthLabel(vm) {
+      var d = new Date(vm);
+      return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+    }
+
+    function gridHTML(vm) {
+      var monthEnd = UI.addMonths(vm, 1);
+      // 記録がある日には小さい点を付ける。月ぶんを1回だけまとめて調べる
+      var recorded = {};
+      Store.logsInRange(vm, monthEnd).forEach(function (l) {
+        recorded[UI.startOfDay(l.start)] = true;
+      });
+
+      var firstWd = new Date(vm).getDay();
+      var daysInMonth = Math.round((monthEnd - vm) / UI.DAY);
+
+      var cells = '';
+      for (var i = 0; i < firstWd; i++) cells += '<span class="cal-cell is-blank"></span>';
+      for (var d = 0; d < daysInMonth; d++) {
+        var ts = UI.addDays(vm, d);
+        var cls = ['cal-cell'];
+        if (ts === todayStart) cls.push('is-today');
+        if (ts === app.day) cls.push('is-selected');
+        cells += '<button class="' + cls.join(' ') + '" data-ts="' + ts + '">' +
+          '<span class="cal-num">' + (d + 1) + '</span>' +
+          (recorded[ts] ? '<span class="cal-dot"></span>' : '') +
+        '</button>';
+      }
+      return cells;
+    }
+
+    UI.openSheet(
+      '<h2>日付を選択</h2>' +
+      '<div class="cal-head">' +
+        '<button class="iconbtn" id="calPrev" aria-label="前の月">‹</button>' +
+        '<div class="cal-title" id="calTitle"></div>' +
+        '<button class="iconbtn" id="calNext" aria-label="次の月">›</button>' +
+      '</div>' +
+      '<div class="cal-wd">' + UI.WD.map(function (w) { return '<span>' + w + '</span>'; }).join('') + '</div>' +
+      '<div class="cal-grid" id="calGrid"></div>' +
+      '<div class="btn-row"><button class="btn btn-sub" id="calToday">今日に戻る</button></div>' +
+      '<div class="btn-row"><button class="btn btn-sub" id="calCancel">キャンセル</button></div>',
+      function (root) {
+        var titleEl = root.querySelector('#calTitle');
+        var gridEl = root.querySelector('#calGrid');
+
+        function paint() {
+          titleEl.textContent = monthLabel(viewMonth);
+          gridEl.innerHTML = gridHTML(viewMonth);
+          gridEl.querySelectorAll('[data-ts]').forEach(function (b) {
+            b.addEventListener('click', function () {
+              app.day = +b.dataset.ts;
+              scrollTimeline();
+              UI.closeSheet();
+            });
+          });
+        }
+        paint();
+
+        root.querySelector('#calPrev').addEventListener('click', function () {
+          viewMonth = UI.addMonths(viewMonth, -1); paint();
+        });
+        root.querySelector('#calNext').addEventListener('click', function () {
+          viewMonth = UI.addMonths(viewMonth, 1); paint();
+        });
+        root.querySelector('#calToday').addEventListener('click', function () {
+          app.day = todayStart; scrollTimeline(); UI.closeSheet();
+        });
+        root.querySelector('#calCancel').addEventListener('click', UI.closeSheet);
+      }
+    );
   }
 
   /** ワンタップで記録するボタン列 */
@@ -400,6 +481,8 @@
 
       reminderCardHTML() +
 
+      cardOrderCardHTML() +
+
       '<div class="card">' +
         '<div class="card-title">データ</div>' +
         '<p class="hint">記録はこの端末のブラウザ内だけに保存されます。' +
@@ -439,6 +522,7 @@
       b.addEventListener('click', function () { openCategoryEditor(b.dataset.editcat); });
     });
     bindReminderCard();
+    bindCardOrder();
 
     UI.el('csvBtn').addEventListener('click', function () {
       Exporter.downloadCSV();
@@ -593,6 +677,48 @@
         UI.toast('カレンダー用のファイルを書き出しました');
       });
     }
+  }
+
+  /* ═════════ サマリーの表示順序 ═════════ */
+
+  function cardOrderRowsHTML() {
+    var order = Store.cardOrder();
+    return order.map(function (key, i) {
+      return '<div class="row">' +
+        '<div class="row-main"><div class="row-title">' + Summary.CARD_LABELS[key] + '</div></div>' +
+        '<div class="reorder-btns">' +
+          '<button class="iconbtn" data-move="up" data-key="' + key + '"' +
+            (i === 0 ? ' disabled' : '') + ' aria-label="上へ">▲</button>' +
+          '<button class="iconbtn" data-move="down" data-key="' + key + '"' +
+            (i === order.length - 1 ? ' disabled' : '') + ' aria-label="下へ">▼</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function cardOrderCardHTML() {
+    return '<div class="card">' +
+      '<div class="card-title">サマリーの表示順序</div>' +
+      '<div id="cardOrderList">' + cardOrderRowsHTML() + '</div>' +
+      '<p class="hint" style="margin-top:10px">サマリー画面に並ぶカードの順番を、ボタンで入れ替えられます。</p>' +
+      '</div>';
+  }
+
+  function bindCardOrder() {
+    var list = UI.el('cardOrderList');
+    if (!list) return;
+    list.querySelectorAll('[data-move]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var order = Store.cardOrder();
+        var i = order.indexOf(b.dataset.key);
+        var j = b.dataset.move === 'up' ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= order.length) return;
+        var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+        // persist() 経由で Store.onChange(render) が呼ばれ、renderSettings() が
+        // このカードごと作り直してくれるので、ここで自前に描き直す必要はない
+        Store.setCardOrder(order);
+      });
+    });
   }
 
   /* ═════════ 体調の記録（ワンタップからの近道） ═════════ */
@@ -914,9 +1040,7 @@
     UI.el('todayBtn').addEventListener('click', function () {
       app.day = UI.startOfDay(Date.now()); scrollTimeline();
     });
-    UI.el('datePicker').addEventListener('change', function () {
-      if (this.value) { app.day = UI.parseDateTime(this.value, '00:00'); scrollTimeline(); }
-    });
+    UI.el('dateLabel').addEventListener('click', openCalendarSheet);
 
     UI.el('fab').addEventListener('click', function () { openEditor(null); });
     UI.el('scrim').addEventListener('click', UI.closeSheet);

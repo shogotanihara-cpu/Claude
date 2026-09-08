@@ -38,6 +38,20 @@ var Store = (function () {
     return SCALE[2];
   }
 
+  /** サマリー画面に並ぶカードの種類（表示順序のカスタマイズ対象） */
+  var CARD_KEYS = ['overview', 'scaleTrend', 'dayGrid', 'categories', 'report'];
+
+  /**
+   * 保存されている並び順を、現在の CARD_KEYS を基準に補正する。
+   * 未知のキーは捨て、足りないキーは末尾に補う（今後カードの種類が
+   * 増減しても、既存の並び順設定を壊さないようにするため）。
+   */
+  function normalizeCardOrder(order) {
+    var out = (order || []).filter(function (k) { return CARD_KEYS.indexOf(k) >= 0; });
+    CARD_KEYS.forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); });
+    return out;
+  }
+
   /* 体調の記録を中心に置いた初期カテゴリ（新規インストール時のみ使う） */
   var DEFAULT_CATEGORIES = [
     { id: 'c_sleep', name: '睡眠',     color: '#5b63b7', kind: 'span',  quick: true },
@@ -58,7 +72,10 @@ var Store = (function () {
   }
 
   function blank() {
-    return { version: VERSION, categories: DEFAULT_CATEGORIES.slice(), logs: [], reminders: [] };
+    return {
+      version: VERSION, categories: DEFAULT_CATEGORIES.slice(), logs: [], reminders: [],
+      cardOrder: CARD_KEYS.slice()
+    };
   }
 
   /**
@@ -93,6 +110,18 @@ var Store = (function () {
     return s;
   }
 
+  /**
+   * バージョンが一致していても必ず補う項目（migrate() は s.version === VERSION の
+   * ときは何もしないので、新しく足したフィールドはここで面倒を見る）。
+   */
+  function ensureDefaults(s) {
+    if (!s.categories || !s.categories.length) s.categories = DEFAULT_CATEGORIES.slice();
+    if (!s.logs) s.logs = [];
+    if (!s.reminders) s.reminders = [];
+    s.cardOrder = normalizeCardOrder(s.cardOrder);
+    return s;
+  }
+
   function load() {
     if (state) return state;
     try {
@@ -101,10 +130,7 @@ var Store = (function () {
     } catch (e) {
       state = blank();
     }
-    if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES.slice();
-    if (!state.logs) state.logs = [];
-    if (!state.reminders) state.reminders = [];
-    state = migrate(state);
+    state = migrate(ensureDefaults(state));
     return state;
   }
 
@@ -217,6 +243,15 @@ var Store = (function () {
     }).sort(function (a, b) { return a.start - b.start; });
   }
 
+  /* ── サマリーのカード表示順序 ─────────── */
+
+  function cardOrder() { return load().cardOrder.slice(); }
+
+  function setCardOrder(order) {
+    load().cardOrder = normalizeCardOrder(order);
+    persist();
+  }
+
   /* ── reminders ────────────────────────── */
   /* { id, time: "08:00", catId: カテゴリID または null } */
 
@@ -257,7 +292,7 @@ var Store = (function () {
     if (!data || !Array.isArray(data.logs) || !Array.isArray(data.categories)) {
       throw new Error('形式が違います');
     }
-    state = migrate(data);
+    state = migrate(ensureDefaults(data));
     persist();
   }
 
@@ -288,6 +323,8 @@ var Store = (function () {
     addReminder: addReminder,
     updateReminder: updateReminder,
     removeReminder: removeReminder,
+    cardOrder: cardOrder,
+    setCardOrder: setCardOrder,
     exportJSON: exportJSON,
     importJSON: importJSON,
     clearAll: clearAll
