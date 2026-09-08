@@ -162,6 +162,22 @@ var Timeline = (function () {
       };
     }
 
+    /* 3つのレーンをひと目で区別できるよう、点・体調レーンにだけ薄い背景と
+       ラベルを敷いておく（期間レーンは記録そのものの色が主役なので無色のまま） */
+    var pointLaneBg = document.createElement('div');
+    pointLaneBg.className = 'lane-bg is-point';
+    pointLaneBg.style.left = POINT_START + '%';
+    pointLaneBg.style.width = POINT_WIDTH + '%';
+    pointLaneBg.innerHTML = '<span class="lane-cap">点</span>';
+    root.appendChild(pointLaneBg);
+
+    var scaleLaneBg = document.createElement('div');
+    scaleLaneBg.className = 'lane-bg is-scale';
+    scaleLaneBg.style.left = SCALE_START + '%';
+    scaleLaneBg.style.width = SCALE_WIDTH + '%';
+    scaleLaneBg.innerHTML = '<span class="lane-cap">体調</span>';
+    root.appendChild(scaleLaneBg);
+
     /* 時刻グリッド（30分刻みの罫線は、この高さでは詰まりすぎるので省く） */
     var grid = document.createDocumentFragment();
     for (var h = 0; h < 24; h++) {

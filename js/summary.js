@@ -186,33 +186,17 @@ var Summary = (function () {
       '</div>';
   }
 
-  function render(container, from, to) {
-    var agg = aggregate(from, to);
+  /** サマリー画面のカードの種類。設定の「表示順序」で並べ替える対象と一致させる */
+  var CARD_LABELS = {
+    overview: '概要',
+    scaleTrend: '体調の推移',
+    dayGrid: '日別の内訳',
+    categories: 'カテゴリ別',
+    report: '受診用レポート'
+  };
 
-    if (!agg.ranked.length) {
-      container.innerHTML =
-        '<div class="empty">この期間の記録はまだありません。<br>' +
-        '上部のボタンから記録してみましょう。</div>' + reportCard();
-      return;
-    }
-
-    var recordedDays = agg.days.filter(function (d) {
-      return d.total > 0 || d.points > 0;
-    }).length;
-    var totalMs = agg.ranked.reduce(function (a, r) { return a + r.ms; }, 0);
-    var totalCount = agg.ranked.reduce(function (a, r) { return a + r.count; }, 0);
-
-    var scaleAvg = null;
-    if (agg.scales.length) {
-      var s = 0;
-      agg.scales.forEach(function (l) { s += l.scale; });
-      scaleAvg = Math.round(s / agg.scales.length * 10) / 10;
-    }
-
-    var html = '';
-
-    /* 概要 */
-    html += '<div class="card">' +
+  function overviewCardHTML(agg, recordedDays, totalMs, totalCount, scaleAvg) {
+    return '<div class="card">' +
       '<div class="card-title">概要</div>' +
       '<div class="row"><div class="row-main"><div class="row-title">記録した日数</div></div>' +
       '<div class="row-val">' + recordedDays + ' / ' + agg.dayCount + '日</div></div>' +
@@ -225,16 +209,9 @@ var Summary = (function () {
       '<div class="row"><div class="row-main"><div class="row-title">記録した時間の合計</div></div>' +
       '<div class="row-val">' + UI.fmtHours(totalMs) + '</div></div>' +
       '</div>';
+  }
 
-    /* 体調の推移 */
-    if (agg.scales.length) {
-      html += '<div class="card"><div class="card-title">体調の推移</div>' + scaleHTML(agg) + '</div>';
-    }
-
-    /* 日別グリッド */
-    html += '<div class="card"><div class="card-title">日別の内訳</div>' + dayGridHTML(agg) + '</div>';
-
-    /* カテゴリ別 */
+  function categoriesCardHTML(agg, recordedDays) {
     var maxMs = agg.ranked[0].ms || 1;
     var rows = agg.ranked.map(function (r) {
       var cat = Store.category(r.catId);
@@ -267,11 +244,50 @@ var Summary = (function () {
       '</div>';
     }).join('');
 
-    html += '<div class="card"><div class="card-title">カテゴリ別</div>' + rows + '</div>';
-    html += reportCard();
+    return '<div class="card"><div class="card-title">カテゴリ別</div>' + rows + '</div>';
+  }
+
+  function render(container, from, to) {
+    var agg = aggregate(from, to);
+
+    if (!agg.ranked.length) {
+      container.innerHTML =
+        '<div class="empty">この期間の記録はまだありません。<br>' +
+        '上部のボタンから記録してみましょう。</div>' + reportCard();
+      return;
+    }
+
+    var recordedDays = agg.days.filter(function (d) {
+      return d.total > 0 || d.points > 0;
+    }).length;
+    var totalMs = agg.ranked.reduce(function (a, r) { return a + r.ms; }, 0);
+    var totalCount = agg.ranked.reduce(function (a, r) { return a + r.count; }, 0);
+
+    var scaleAvg = null;
+    if (agg.scales.length) {
+      var s = 0;
+      agg.scales.forEach(function (l) { s += l.scale; });
+      scaleAvg = Math.round(s / agg.scales.length * 10) / 10;
+    }
+
+    // 設定で決めた順序でカードを並べる。体調の推移は記録が無ければそもそも出さない
+    var html = Store.cardOrder().map(function (key) {
+      if (key === 'overview') return overviewCardHTML(agg, recordedDays, totalMs, totalCount, scaleAvg);
+      if (key === 'scaleTrend') {
+        return agg.scales.length
+          ? '<div class="card"><div class="card-title">体調の推移</div>' + scaleHTML(agg) + '</div>'
+          : '';
+      }
+      if (key === 'dayGrid') {
+        return '<div class="card"><div class="card-title">日別の内訳</div>' + dayGridHTML(agg) + '</div>';
+      }
+      if (key === 'categories') return categoriesCardHTML(agg, recordedDays);
+      if (key === 'report') return reportCard();
+      return '';
+    }).join('');
 
     container.innerHTML = html;
   }
 
-  return { render: render, aggregate: aggregate };
+  return { render: render, aggregate: aggregate, CARD_LABELS: CARD_LABELS };
 })();
