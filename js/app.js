@@ -213,11 +213,13 @@
   /**
    * タイムラインの下、タブバーとの間に置く記録ボタン。期間(＋)・点・体調の
    * 3つを、上の3レーンとそれぞれ縦に揃えて並べる。
-   * 点・体調はカテゴリが1つだけならそのまま記録、複数あれば軽い選択を挟む。
+   * 点・体調は「ワンタップ」設定に関わらず、そのカテゴリが存在すれば常に出す
+   * （上部の期間クイックバーと違い、経過時間つきの特別な見た目が要らないため）。
+   * カテゴリが1つだけならそのまま記録、複数あれば軽い選択を挟む。
    */
   function renderDockZone(kind, elId) {
     var el = UI.el(elId);
-    var cats = Store.quickCategories().filter(function (c) { return c.kind === kind; });
+    var cats = Store.categories().filter(function (c) { return c.kind === kind; });
 
     if (!cats.length) { el.innerHTML = ''; return; }
 
@@ -243,9 +245,9 @@
     renderDockZone('scale', 'dockScale');
   }
 
-  /** 点・体調のワンタップ用カテゴリが複数あるときだけ出す、軽いカテゴリ選択 */
+  /** 点・体調のカテゴリが複数あるときだけ出す、軽いカテゴリ選択 */
   function openQuickKindPicker(kind, x, y) {
-    var cats = Store.quickCategories().filter(function (c) { return c.kind === kind; });
+    var cats = Store.categories().filter(function (c) { return c.kind === kind; });
     if (!cats.length) return;
 
     var scrim = document.createElement('div');
@@ -539,8 +541,9 @@
       '<div class="card">' +
         '<div class="card-title">カテゴリ</div>' + cats +
         '<div class="btn-row"><button class="btn btn-sub" id="addCatBtn">カテゴリを追加</button></div>' +
-        '<p class="hint" style="margin-top:12px">「ワンタップ」にしたカテゴリは1回のタップで記録できます' +
-        '（期間はタイムライン上部、点・体調はタイムライン下部に出ます）。</p>' +
+        '<p class="hint" style="margin-top:12px">点・体調はタイムライン下部のボタンから、' +
+        'いつでも1回のタップで記録できます。「ワンタップ」にした期間カテゴリは、' +
+        'タイムライン上部に開始/終了ボタンとして出ます。</p>' +
       '</div>' +
 
       reminderCardHTML() +
@@ -1027,9 +1030,11 @@
         '</div>' +
         '<p class="hint" style="margin-top:8px" id="kindHint"></p>' +
       '</div>' +
-      '<div class="field">' +
+      '<div class="field" id="quickField">' +
         '<label class="check"><input type="checkbox" id="cQuick"' + (cat.quick ? ' checked' : '') + '>' +
-        'ワンタップ記録に出す（期間は上部、点・体調は下部）</label></div>' +
+        'タイムライン上部に開始/終了ボタンを出す</label>' +
+        '<p class="hint" style="margin-top:6px">点・体調はこの設定に関わらず、' +
+        'タイムライン下部から常にワンタップで記録できます。</p></div>' +
       '<button class="btn" id="cSave">保存</button>' +
       (id ? '<div class="btn-row"><button class="btn btn-danger" id="cDel">削除</button></div>' : '') +
       '<div class="btn-row"><button class="btn btn-sub" id="cCancel">キャンセル</button></div>';
@@ -1049,6 +1054,8 @@
           b.classList.toggle('is-on', b.dataset.kind === k);
         });
         root.querySelector('#kindHint').textContent = HINTS[k];
+        // 「ワンタップ」設定が意味を持つのは期間だけ（点・体調は常に下部に出るため）
+        root.querySelector('#quickField').style.display = (k === 'span') ? '' : 'none';
       }
       setKind(cur.kind);
 
