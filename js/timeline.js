@@ -329,5 +329,5 @@ var Timeline = (function () {
     window.scrollTo({ top: Math.max(0, offset + y - 120), behavior: 'auto' });
   }
 
-  return { render: render, scrollToRelevant: scrollToRelevant, HOUR_H: HOUR_H };
+  return { render: render, scrollToRelevant: scrollToRelevant, assignLanes: assignLanes, HOUR_H: HOUR_H };
 })();

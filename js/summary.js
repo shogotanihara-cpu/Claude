@@ -79,6 +79,7 @@ var Summary = (function () {
 
   var HOUR_PX = 10;              // 圧縮した1時間ぶんの高さ(px)
   var GRID_H = 24 * HOUR_PX;     // 24時間ぶんの高さ
+  var SPAN_LANE_START = 15, SPAN_LANE_WIDTH = 70;   // 期間バーが使う横幅(%)。重複時はこの中で分割する
 
   /**
    * 日ごとの列をまたいでラベルを中央寄せにする（列より文字が大きくてもはみ出さない）。
@@ -125,23 +126,39 @@ var Summary = (function () {
 
     var cols = agg.days.map(function (d) {
       var dayStart = d.start, dayEnd = UI.addDays(dayStart, 1);
-      var marks = d.logs.map(function (l) {
-        if (l.type === 'span') {
-          var end = Math.min(l.end || now, dayEnd);
-          var start = Math.max(l.start, dayStart);
-          if (end <= start) return '';
-          var top = (start - dayStart) / UI.HOUR * HOUR_PX;
-          var height = Math.max((end - start) / UI.HOUR * HOUR_PX, 2);
-          return '<div class="grid-span" style="top:' + top + 'px;height:' + height +
-                 'px;background:' + Store.category(l.catId).color + '"></div>';
+      var spans = [];
+      var dots = '';
+
+      d.logs.forEach(function (l) {
+        if (l.type !== 'span') {
+          var y = (l.start - dayStart) / UI.HOUR * HOUR_PX;
+          var color = (l.type === 'scale' && l.scale)
+            ? Store.scaleInfo(l.scale).color
+            : Store.category(l.catId).color;
+          dots += '<div class="grid-dot" style="top:' + y + 'px;background:' + color + '"></div>';
+          return;
         }
-        var y = (l.start - dayStart) / UI.HOUR * HOUR_PX;
-        var color = (l.type === 'scale' && l.scale)
-          ? Store.scaleInfo(l.scale).color
-          : Store.category(l.catId).color;
-        return '<div class="grid-dot" style="top:' + y + 'px;background:' + color + '"></div>';
+        var end = Math.min(l.end || now, dayEnd);
+        var start = Math.max(l.start, dayStart);
+        if (end <= start) return;
+        spans.push({ log: l, from: start, to: end });
+      });
+
+      // 同じ日に重なる期間があれば、幅は変えずにその中で列を分ける
+      // （メインのタイムラインと同じ考え方。列自体が狭い月・3ヶ月表示では
+      // 分けても数px以下になり見分けがつきにくいが、幅を広げはしない）
+      Timeline.assignLanes(spans);
+      var bars = spans.map(function (s) {
+        var top = (s.from - dayStart) / UI.HOUR * HOUR_PX;
+        var height = Math.max((s.to - s.from) / UI.HOUR * HOUR_PX, 2);
+        var w = SPAN_LANE_WIDTH / s.lanes;
+        var left = SPAN_LANE_START + s.lane * w;
+        return '<div class="grid-span" style="top:' + top + 'px;height:' + height +
+               'px;left:' + left + '%;width:calc(' + w + '% - 1px);background:' +
+               Store.category(s.log.catId).color + '"></div>';
       }).join('');
-      return '<div class="daygrid-col">' + marks + '</div>';
+
+      return '<div class="daygrid-col">' + bars + dots + '</div>';
     }).join('');
 
     return '<div class="daygrid-row">' +

@@ -384,7 +384,8 @@ main { padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px); }
 .daygrid-cols { position: absolute; inset: 0; display: grid; gap: 2px; padding: 0 1px; }
 .daygrid-col { position: relative; min-width: 0; }
 .grid-span {
-  position: absolute; left: 15%; right: 15%; border-radius: 2px; min-height: 2px;
+  /* left/width は重複時のレーン分割に合わせて JS 側で指定する */
+  position: absolute; border-radius: 2px; min-height: 2px;
 }
 .grid-dot {
   position: absolute; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;
