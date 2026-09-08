@@ -108,19 +108,19 @@ var Summary = (function () {
    * 期間内の記録を、日を横に・時刻を縦に並べたグリッドで見せる。
    * 積み上げの合計時間ではなく、実際に「いつ」記録したかをそのまま描く
    * ＝ 1日ぶんのタイムラインを、期間分だけ横に並べたもの。
-   * 縦の目盛りは2時間おきに間引いてある。
+   * 縦の目盛りは1時間おき。
    */
   function dayGridHTML(agg) {
     var now = Date.now();
     var n = agg.days.length;
 
     var axis = '';
-    for (var h = 0; h <= 24; h += 2) {
+    for (var h = 0; h <= 24; h += 1) {
       axis += '<span class="daygrid-axis-label" style="top:' + (h * HOUR_PX) + 'px">' + h + '</span>';
     }
 
     var gridlines = '';
-    for (var h2 = 2; h2 < 24; h2 += 2) {
+    for (var h2 = 1; h2 < 24; h2 += 1) {
       gridlines += '<div class="daygrid-hour" style="top:' + (h2 * HOUR_PX) + 'px"></div>';
     }
 
