@@ -5,13 +5,6 @@
 (function () {
   'use strict';
 
-  var TITLES = {
-    timeline: 'タイムライン',
-    summary: 'サマリー',
-    search: '検索',
-    settings: '設定'
-  };
-
   var KIND_LABEL = { span: '期間で記録', point: '点で記録', scale: '体調（1〜5）で記録' };
 
   var app = {
@@ -62,7 +55,6 @@
     document.querySelectorAll('.tab').forEach(function (b) {
       b.classList.toggle('is-on', b.dataset.tab === tab);
     });
-    UI.el('appbarTitle').textContent = TITLES[tab];
     UI.el('datebar').classList.toggle('is-hidden', tab !== 'timeline');
     UI.el('fab').hidden = (tab === 'settings');
     window.scrollTo(0, 0);
