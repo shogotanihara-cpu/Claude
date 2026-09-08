@@ -215,12 +215,57 @@
    * 3つを、上の3レーンとそれぞれ縦に揃えて並べる。
    * 点・体調は「ワンタップ」設定に関わらず、そのカテゴリが存在すれば常に出す
    * （上部の期間クイックバーと違い、経過時間つきの特別な見た目が要らないため）。
-   * カテゴリが1つだけならそのまま記録、複数あれば軽い選択を挟む。
    */
-  function renderDockZone(kind, elId) {
-    var el = UI.el(elId);
-    var cats = Store.categories().filter(function (c) { return c.kind === kind; });
+  function renderDock() {
+    renderPointDock();
+    renderScaleDock();
+  }
 
+  /**
+   * 点は常に「点」という汎用ボタンにし、タップすると下からシートで
+   * カテゴリの一覧を出す（カテゴリが1件でも、名前を覚えなくても迷わず
+   * 押せるように毎回メニューを経由する）。
+   */
+  function renderPointDock() {
+    var el = UI.el('dockPoint');
+    var cats = Store.categories().filter(function (c) { return c.kind === 'point'; });
+    if (!cats.length) { el.innerHTML = ''; return; }
+
+    el.innerHTML = '<button class="dockbtn" id="dockPointBtn">' +
+      '<span class="dot" style="background:var(--text-faint)"></span>点</button>';
+    el.querySelector('button').addEventListener('click', openPointMenu);
+  }
+
+  /** 点カテゴリの一覧を下からのシートで出す。選ぶとその場で記録する */
+  function openPointMenu() {
+    var cats = Store.categories().filter(function (c) { return c.kind === 'point'; });
+    if (!cats.length) return;
+
+    UI.openSheet(
+      '<h2>点を記録</h2>' +
+      cats.map(function (c) {
+        return '<button class="row" data-cat="' + c.id + '">' +
+          '<span class="dot" style="background:' + c.color + '"></span>' +
+          '<div class="row-main"><div class="row-title">' + UI.esc(c.name) + '</div></div>' +
+        '</button>';
+      }).join('') +
+      '<div class="btn-row"><button class="btn btn-sub" id="pointMenuCancel">キャンセル</button></div>',
+      function (root) {
+        root.querySelectorAll('[data-cat]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            quickTap(b.dataset.cat);
+            UI.closeSheet();
+          });
+        });
+        root.querySelector('#pointMenuCancel').addEventListener('click', UI.closeSheet);
+      }
+    );
+  }
+
+  /** 体調はカテゴリが1つだけならそのまま記録、複数あれば軽い選択を挟む */
+  function renderScaleDock() {
+    var el = UI.el('dockScale');
+    var cats = Store.categories().filter(function (c) { return c.kind === 'scale'; });
     if (!cats.length) { el.innerHTML = ''; return; }
 
     if (cats.length === 1) {
@@ -231,21 +276,15 @@
       return;
     }
 
-    var label = kind === 'scale' ? '体調を記録' : '点を記録';
-    el.innerHTML = '<button class="dockbtn" id="dockPick-' + kind + '">' +
-      '<span class="dot" style="background:var(--text-faint)"></span>' + UI.esc(label) + '</button>';
+    el.innerHTML = '<button class="dockbtn" id="dockPickScale">' +
+      '<span class="dot" style="background:var(--text-faint)"></span>体調を記録</button>';
     el.querySelector('button').addEventListener('click', function (e) {
       var r = e.currentTarget.getBoundingClientRect();
-      openQuickKindPicker(kind, r.left + r.width / 2, r.top);
+      openQuickKindPicker('scale', r.left + r.width / 2, r.top);
     });
   }
 
-  function renderDock() {
-    renderDockZone('point', 'dockPoint');
-    renderDockZone('scale', 'dockScale');
-  }
-
-  /** 点・体調のカテゴリが複数あるときだけ出す、軽いカテゴリ選択 */
+  /** 体調のカテゴリが複数あるときだけ出す、軽いカテゴリ選択 */
   function openQuickKindPicker(kind, x, y) {
     var cats = Store.categories().filter(function (c) { return c.kind === kind; });
     if (!cats.length) return;
