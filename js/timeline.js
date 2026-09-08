@@ -189,6 +189,14 @@ var Timeline = (function () {
       }
       grid.appendChild(line);
     }
+    // 軸の一番下に24:00の目盛りも足す（0〜23時のループだけだと最後が
+    // 22:00で終わってしまい、時間軸の終端がわかりにくいため）
+    var endLine = document.createElement('div');
+    endLine.className = 'hour is-major';
+    endLine.style.top = (24 * HOUR_H) + 'px';
+    endLine.style.height = '0';
+    endLine.innerHTML = '<span class="hour-label">24:00</span>';
+    grid.appendChild(endLine);
     root.appendChild(grid);
 
     var logs = Store.logsInRange(dayStart, dayEnd);
