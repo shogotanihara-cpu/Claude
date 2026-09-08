@@ -1,14 +1,14 @@
 {
-  "name": "ログ - 行動記録",
+  "name": "ログ - 体調と暮らしの記録",
   "short_name": "ログ",
-  "description": "1日の行動をバーチカルタイムラインで記録し、振り返るためのアプリ",
+  "description": "睡眠・服薬・体調を1日のタイムラインで記録して、受診のときに1枚のレポートとして持っていけるアプリ。記録はお使いの端末の中だけに保存されます。",
   "lang": "ja",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f6f7f9",
-  "theme_color": "#3b6ef5",
+  "background_color": "#f3f4f7",
+  "theme_color": "#2f5d8f",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
