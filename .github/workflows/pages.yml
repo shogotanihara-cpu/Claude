@@ -26,16 +26,20 @@ jobs:
 
       - name: 公開するファイルだけを集める
         run: |
-          # 記録アプリ「ログ」は /log 以下に配置する。ドメイン直下は使わない。
-          mkdir -p _site/log
-          cp -r index.html manifest.webmanifest sw.js robots.txt css js icons _site/log/
-          # タスク管理アプリ「ワケワケ」は /wake 以下
-          cp -r wake _site/
-          rm -f _site/wake/README.md
-          # robots.txt はクローラーがドメイン直下でしか見ないため、ルートにも置く
+          # index.html を持つフォルダを1つのアプリとみなして、そのまま並べる。
+          # アプリを増やすときはフォルダを足すだけでよく、ここは触らなくていい。
+          mkdir -p _site
+          for dir in */; do
+            [ -f "${dir}index.html" ] || continue
+            echo "アプリとして公開: ${dir}"
+            cp -r "${dir}" _site/
+          done
+          # ドメイン直下にはアプリを置かない。サイト全体のものだけ。
           cp robots.txt _site/
           # カスタムドメインを使う場合はリポジトリ直下の CNAME をサイトのルートに配置する
           if [ -f CNAME ]; then cp CNAME _site/; fi
+          # README は公開しない
+          rm -f _site/*/README.md
           touch _site/.nojekyll
 
       # enablement による自動有効化は GITHUB_TOKEN の権限では行えないため使わない。

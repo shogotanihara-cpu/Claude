@@ -55,7 +55,7 @@
 ```bash
 # リポジトリのルートで
 python3 -m http.server 8000
-# → http://localhost:8000/wake/index.html
+# → http://localhost:8000/wake/
 ```
 
 > Service Worker は `https://` または `localhost` でのみ動きます。
@@ -104,7 +104,7 @@ icons/                  アプリアイコン
 
 ## 既存アプリとの同居
 
-- 記録アプリ「ログ」は `/log/`、ワケワケは `/wake/` に置いています。
+- 記録アプリ「ログ」は `log/`（→ `/log/`）、ワケワケは `wake/`（→ `/wake/`）。
   Service Worker のスコープがそれぞれの階層に閉じるので、
   片方がもう片方のリクエストを拾うことはありません
 - 保存キーは `wake.v1`。「ログ」の `actionlog.v1` とは別物です
