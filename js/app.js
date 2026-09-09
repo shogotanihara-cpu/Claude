@@ -970,7 +970,9 @@
     var type = log ? log.type : Store.category(catId).kind;
     var start = log ? log.start :
       (prefillStart !== undefined ? prefillStart : (isToday ? now : app.day + 9 * UI.HOUR));
-    var end = log ? log.end : null;
+    // 新規作成時も、開始と同じく終了欄を空のまま出さない（1時間後を仮の値にしておき、
+    // 必要ならそこから調整してもらう。「継続中」チェック時はどのみち使われない）
+    var end = log ? log.end : start + UI.HOUR;
     // 時間帯を指定して開いたときは、具体的な開始〜終了を入力してもらう
     // （「継続中」の既定チェックは、いま現在から始める場合だけにする）
     var open = log ? (log.type === 'span' && !log.end) : (prefillStart === undefined && isToday);
