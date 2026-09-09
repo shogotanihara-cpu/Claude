@@ -1,19 +1,23 @@
-/* Service Worker — オフラインで開けるようにアプリ本体をキャッシュする。
-   記録データはキャッシュではなく localStorage に入っているため、ここでは扱わない。 */
+/* Service Worker — ワケワケ本体をキャッシュして、オフラインでも開けるようにする。
+   タスクは localStorage に入っているので、ここでは扱わない。
 
-var CACHE = 'actionlog-v4';
+   スコープは /wake/ 。同じドメインのルートにも別アプリの Service Worker が
+   いるが、より内側のスコープを持つこちらが /wake/ 配下を受け持つ。 */
+
+var CACHE = 'wakewake-v1';
 
 var ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/store.js',
+  './js/model.js',
   './js/ui.js',
-  './js/timeline.js',
-  './js/summary.js',
-  './js/report.js',
-  './js/export.js',
-  './js/notify.js',
+  './js/task.js',
+  './js/now.js',
+  './js/due.js',
+  './js/tree.js',
+  './js/calendar.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon.svg',
@@ -40,18 +44,11 @@ self.addEventListener('activate', function (e) {
 });
 
 /* network-first: 更新を取りに行き、オフラインならキャッシュを返す。
-   { cache: 'no-store' } を明示しないと、GitHub Pages側のCache-Controlに
-   従ってブラウザの通常のHTTPキャッシュから返ってしまい、「ネットワーク優先」の
-   つもりでも実際には数分〜古い内容を掴み続けてしまうことがあるため。 */
+   { cache: 'no-store' } を明示しないと、GitHub Pages 側の Cache-Control に従って
+   ブラウザの通常のHTTPキャッシュから返り、「ネットワーク優先」のつもりでも
+   古い内容を掴み続けてしまうことがある。 */
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
-
-  /* /wake/ 以下は別アプリ（ワケワケ）が自分の Service Worker で受け持つ。
-     ここで拾ってしまうと、オフライン時にこちらの index.html を返してしまい、
-     別のアプリの画面が出る。同一オリジンの /wake/ 配下だけは素通しする。 */
-  var u = new URL(e.request.url);
-  if (u.origin === self.location.origin && u.pathname.indexOf('/wake/') === 0) return;
-
   e.respondWith(
     fetch(e.request, { cache: 'no-store' }).then(function (res) {
       var copy = res.clone();

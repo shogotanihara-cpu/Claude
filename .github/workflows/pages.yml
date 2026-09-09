@@ -28,6 +28,9 @@ jobs:
         run: |
           mkdir -p _site
           cp -r index.html manifest.webmanifest sw.js robots.txt css js icons _site/
+          # タスク管理アプリ「ワケワケ」（/wake/ で公開）
+          cp -r wake _site/
+          rm -f _site/wake/README.md
           # カスタムドメインを使う場合はリポジトリ直下の CNAME を配置する
           if [ -f CNAME ]; then cp CNAME _site/; fi
           touch _site/.nojekyll
