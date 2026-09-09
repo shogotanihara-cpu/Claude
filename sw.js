@@ -1,7 +1,7 @@
 /* Service Worker — オフラインで開けるようにアプリ本体をキャッシュする。
    記録データはキャッシュではなく localStorage に入っているため、ここでは扱わない。 */
 
-var CACHE = 'actionlog-v4';
+var CACHE = 'actionlog-v5';
 
 var ASSETS = [
   './',
@@ -45,13 +45,6 @@ self.addEventListener('activate', function (e) {
    つもりでも実際には数分〜古い内容を掴み続けてしまうことがあるため。 */
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
-
-  /* /wake/ 以下は別アプリ（ワケワケ）が自分の Service Worker で受け持つ。
-     ここで拾ってしまうと、オフライン時にこちらの index.html を返してしまい、
-     別のアプリの画面が出る。同一オリジンの /wake/ 配下だけは素通しする。 */
-  var u = new URL(e.request.url);
-  if (u.origin === self.location.origin && u.pathname.indexOf('/wake/') === 0) return;
-
   e.respondWith(
     fetch(e.request, { cache: 'no-store' }).then(function (res) {
       var copy = res.clone();
