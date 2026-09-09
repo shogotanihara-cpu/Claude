@@ -44,7 +44,8 @@ iPhone で確実に知らせてほしい場合は、設定の「カレンダー�
 `main` ブランチに変更が入ると GitHub Actions（`.github/workflows/pages.yml`）が
 自動で GitHub Pages にデプロイします。
 
-- 公開 URL: https://app.oshihitsuji.jp/
+- 公開 URL: https://app.oshihitsuji.jp/log/
+- アプリ本体は `/log` 以下に配置しており、ドメイン直下（`/`）には何も置いていません。
 
 同じドメインで運用しているブログとは別のサブドメインに置いています。
 ブログの apex（`oshihitsuji.jp`）のレコードには一切触れていません。
