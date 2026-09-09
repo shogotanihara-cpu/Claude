@@ -1,7 +1,7 @@
 /* Service Worker — オフラインで開けるようにアプリ本体をキャッシュする。
    記録データはキャッシュではなく localStorage に入っているため、ここでは扱わない。 */
 
-var CACHE = 'actionlog-v4';
+var CACHE = 'actionlog-v5';
 
 var ASSETS = [
   './',
