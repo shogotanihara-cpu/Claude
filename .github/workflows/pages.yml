@@ -26,9 +26,12 @@ jobs:
 
       - name: 公開するファイルだけを集める
         run: |
-          # アプリ本体は /log 以下に配置する。ドメイン直下は使わない。
+          # 記録アプリ「ログ」は /log 以下に配置する。ドメイン直下は使わない。
           mkdir -p _site/log
           cp -r index.html manifest.webmanifest sw.js robots.txt css js icons _site/log/
+          # タスク管理アプリ「ワケワケ」は /wake 以下
+          cp -r wake _site/
+          rm -f _site/wake/README.md
           # robots.txt はクローラーがドメイン直下でしか見ないため、ルートにも置く
           cp robots.txt _site/
           # カスタムドメインを使う場合はリポジトリ直下の CNAME をサイトのルートに配置する
