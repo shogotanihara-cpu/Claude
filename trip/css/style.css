@@ -1,8 +1,9 @@
 /* ─────────────────────────────────────────
-   style.css — 旅程しおり
+   style.css — シオリ
 
-   色は「しおり（本にはさむ栞）」の紐から取った臙脂。隣に並ぶ2つのアプリと
-   ホーム画面で見分けがつくようにするため（ログ＝青、ワケワケ＝緑）。
+   ブランド色は水色。カテゴリ色の「移動」（--c-move）も元は青系だったため、
+   同じ色相だと予定ブロックの「移動」とボタン類のブランド色が紛らわしくなる。
+   そのため --c-move をブランド色から離れた青緑寄りへずらしてある。
 
    Webフォントは使わない。オフラインで見え方が変わらないようにするため。
    ライト／ダークは color-scheme とトークンの入れ替えで両対応する。
@@ -20,15 +21,15 @@
   --muted: #6a7280;
   --faint: #99a1ac;
 
-  --brand: #8a3e5c;
-  --brand-soft: #f3e6ec;
+  --brand: #1E88B5;
+  --brand-soft: #e3f1f7;
   --on-brand: #ffffff;
   --now: #c0433e;
 
   --grid: #e6e9ee;
   --grid-strong: #d5dae1;
 
-  --c-move: #3c6e96;
+  --c-move: #46587a;
   --c-see:  #2e8b7a;
   --c-eat:  #c8912e;
   --c-live: #b65a3e;
@@ -52,15 +53,15 @@
     --muted: #9aa3b0;
     --faint: #6f7885;
 
-    --brand: #e093ae;
-    --brand-soft: #33202a;
-    --on-brand: #23131a;
+    --brand: #7dd3f0;
+    --brand-soft: #163445;
+    --on-brand: #0d2733;
     --now: #e06b62;
 
     --grid: #242a34;
     --grid-strong: #333b47;
 
-    --c-move: #6fa3d6;
+    --c-move: #8793b8;
     --c-see:  #4fb8a2;
     --c-eat:  #e0b25a;
     --c-live: #e08a6d;
@@ -81,13 +82,13 @@
   --ink: #e4e8ee;
   --muted: #9aa3b0;
   --faint: #6f7885;
-  --brand: #e093ae;
-  --brand-soft: #33202a;
-  --on-brand: #23131a;
+  --brand: #7dd3f0;
+  --brand-soft: #163445;
+  --on-brand: #0d2733;
   --now: #e06b62;
   --grid: #242a34;
   --grid-strong: #333b47;
-  --c-move: #6fa3d6;
+  --c-move: #8793b8;
   --c-see:  #4fb8a2;
   --c-eat:  #e0b25a;
   --c-live: #e08a6d;
@@ -627,6 +628,17 @@ i.sw.c-etc  { background: var(--c-etc); }
 .list-row.gear-row { grid-template-columns: minmax(0, 1fr) auto auto; }
 
 .trip-row.current { background: var(--brand-soft); }
+
+/* 旅行の削除だけ2段階。1回目のタップでこの姿になり、2回目で実際に消える */
+.trip-del-confirm {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--now);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .badge {
   padding: 3px 8px;
   border-radius: 10px;

@@ -22,7 +22,8 @@ var Plan = (function () {
   var PX_PER_HOUR = 44;    // 通常表示。1時間あたりの高さ
   var MIN_BLOCK = 20;      // 短い予定でもこの高さは確保する（文字が入る下限）
   var MIN_BLOCK_FIT = 9;   // 一望では色帯として見えれば足りる
-  var SNAP = 5;            // ドラッグの丸め（分）
+  var SNAP = 5;            // ドラッグ・行き先候補を「置く」ときの丸め（分）
+  var TAP_SNAP = 15;       // 空いている場所をタップして追加するときの丸め（分）
 
   var dayIndex = 0;
   var fit = false;
@@ -67,6 +68,8 @@ var Plan = (function () {
           UI.icon('plus', 22) + '</button>' +
         '<button type="button" class="dock-pill" id="candBtn">行き先候補 ' +
           '<span class="count">' + Model.candidates(trip).length + '</span></button>' +
+        '<button type="button" class="dock-pill" id="quickMoveBtn">' +
+          '<i class="sw c-move"></i>移動</button>' +
       '</div>';
 
     var pages = host.querySelectorAll('.daypage');
@@ -215,6 +218,10 @@ var Plan = (function () {
         return;
       }
       if (e.target.closest && e.target.closest('#candBtn')) { Item.openCandidates(); return; }
+      if (e.target.closest && e.target.closest('#quickMoveBtn')) {
+        Item.open(null, Model.daysOf(Store.current())[dayIndex], undefined, 'move');
+        return;
+      }
       if (e.target.closest && e.target.closest('#placingCancel')) { stopPlacing(); return; }
 
       var blk = e.target.closest ? e.target.closest('[data-item]') : null;
@@ -224,6 +231,19 @@ var Plan = (function () {
            「動かした直後に別の予定を開こうとしたら反応しない」になるため。 */
         if (suppressClick === blk.dataset.item) { suppressClick = null; return; }
         Item.open(blk.dataset.item);
+        return;
+      }
+
+      /* 予定の無い場所（空き時間）をタップしたら、その時刻を初期値にして
+         追加シートを開く。行き先候補を「置く」ときの丸め（5分）とは
+         分けてあり、こちらは15分刻みで十分（タップの狙いは指の太さぶん
+         ずれるので、5分刻みだと逆に狙った時刻からずれて見える）。 */
+      var lane = e.target.closest ? e.target.closest('.lane') : null;
+      if (lane) {
+        var rect = lane.getBoundingClientRect();
+        var minutes = Math.round(((e.clientY - rect.top) / pxPerHour() * 60) / TAP_SNAP) * TAP_SNAP;
+        minutes = Math.max(0, Math.min(1435, minutes));
+        Item.open(null, lane.dataset.lane, UI.fromMin(minutes));
       }
     }
   }

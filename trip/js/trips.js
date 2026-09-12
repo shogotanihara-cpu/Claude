@@ -6,12 +6,22 @@
 
    並びは「これからの旅行」と「旅の記録」の2つ。終了日が過ぎたものは
    自動で記録側へ移る。準備するものと見返すものは、探し方が違うため。
+
+   旅行の削除だけは2段階にしてある。中身（予定・持ちもの）ごと消える
+   いちばん範囲の広い操作なので、他の削除（持ちもの・カテゴリ）より
+   一段重くしてある。1回目のタップでは何も消さず、その行の削除ボタンが
+   「本当に削除」に変わるだけ。2回目のタップで実際に削除する。
    ───────────────────────────────────────── */
 
 var Trips = (function () {
   'use strict';
 
+  var hostEl = null;
+  var armedId = null;   // 「本当に削除」に変わっている旅行のid
+  var armTimer = null;
+
   function render(host) {
+    hostEl = host;
     var all = Store.trips();
     var current = Store.current();
     var t = UI.today();
@@ -49,6 +59,8 @@ var Trips = (function () {
       if (cand) bits.push('候補' + cand + '件');
       if (trip.gear.length) bits.push('持ちもの' + doneGear + '/' + trip.gear.length);
 
+      var armed = trip.id === armedId;
+
       html += '<li class="list-row trip-row' +
         (current && trip.id === current.id ? ' current' : '') + '">' +
         '<button type="button" class="list-main" data-trip="' + trip.id + '">' +
@@ -56,8 +68,11 @@ var Trips = (function () {
           '<span class="list-text"><b>' + UI.esc(trip.title) + '</b>' +
           '<small>' + UI.esc(bits.join(' ・ ')) + '</small></span>' +
         '</button>' +
-        '<button type="button" class="list-x" data-trip-del="' + trip.id + '" ' +
-          'aria-label="削除">' + UI.icon('close', 15) + '</button>' +
+        (armed
+          ? '<button type="button" class="trip-del-confirm" data-trip-del="' + trip.id + '">' +
+              '本当に削除</button>'
+          : '<button type="button" class="list-x" data-trip-del="' + trip.id + '" ' +
+              'aria-label="削除">' + UI.icon('close', 15) + '</button>') +
         '</li>';
     });
     return html + '</ul></div>';
@@ -69,32 +84,61 @@ var Trips = (function () {
       : UI.dateLabel(trip.start) + '–' + UI.dateLabel(trip.end);
   }
 
+  /* 1回目のタップ。他の行が武装中なら、そちらは自動で解ける
+     （常に1行だけが「本当に削除」になる）。少し待っても2回目が
+     来なければ自動で解除する。うっかり後で押して即消えるのを防ぐため。 */
+  function arm(id) {
+    armedId = id;
+    clearTimeout(armTimer);
+    armTimer = setTimeout(function () {
+      armedId = null;
+      /* この間にタブが切り替わっていたら、他画面の描画を巻き込まない */
+      if (hostEl && hostEl.classList.contains('view-trips')) render(hostEl);
+    }, 3000);
+    render(hostEl);
+  }
+
+  function disarm() {
+    armedId = null;
+    clearTimeout(armTimer);
+  }
+
   /* 受け口は app.js が1度だけ張る */
   function onClick(e) {
+    var del = e.target.closest ? e.target.closest('[data-trip-del]') : null;
+    if (del) {
+      var id = del.dataset.tripDel;
+      if (armedId === id) {
+        disarm();
+        var trip = Store.trips().filter(function (x) { return x.id === id; })[0];
+        Store.removeTrip(id);
+        UI.toast('「' + (trip ? trip.title : '') + '」を削除しました', '取り消す',
+          function () { Store.undo(); });
+      } else {
+        arm(id);
+      }
+      return;
+    }
+
     var pick = e.target.closest ? e.target.closest('[data-trip]') : null;
     if (pick) {
+      disarm();
       Store.setCurrent(pick.dataset.trip);
       Plan.resetDay();
       App.showTab('plan');
       return;
     }
 
-    var del = e.target.closest ? e.target.closest('[data-trip-del]') : null;
-    if (del) {
-      var id = del.dataset.tripDel;
-      var trip = Store.trips().filter(function (x) { return x.id === id; })[0];
-      Store.removeTrip(id);
-      UI.toast('「' + (trip ? trip.title : '') + '」を削除しました', '取り消す',
-        function () { Store.undo(); });
+    if (e.target.closest && e.target.closest('#tripAdd')) {
+      disarm();
+      Store.addTrip('新しい旅行');
+      Plan.resetDay();
+      App.showTab('settings');
       return;
     }
 
-    if (e.target.closest && e.target.closest('#tripAdd')) {
-      Store.addTrip('新しい旅行');
-      Plan.resetDay();
-      /* 名前と日付を決めないと使えないので、そのまま設定に送る */
-      App.showTab('settings');
-    }
+    /* 削除以外の場所をタップしたら、武装中の行があれば見た目を戻す */
+    if (armedId !== null) { disarm(); render(hostEl); }
   }
 
   return { render: render, onClick: onClick };
