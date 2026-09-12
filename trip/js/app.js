@@ -11,9 +11,10 @@
 var App = (function () {
   'use strict';
 
-  /* 予定編集シートの並び替え対象。種別・予定名は無いと予定が成立しないので
+  /* 予定編集シートの並び替え対象。予定名は無いと予定が成立しないので
      ここには含めず、常に先頭に固定する（item.js を参照）。 */
   var ITEM_ORDER_LABELS = {
+    cat: '種別',
     kind: '記録のしかた（期間・点）',
     datetime: '日付・開始時刻',
     duration: '所要時間・終了時刻・費用',
@@ -110,7 +111,7 @@ var App = (function () {
 
     html += '<div class="card"><h3>予定入力フォームの並び順</h3><ul class="list">' +
       orderItemsHtml() + '</ul></div>' +
-      '<p class="note">「種別」と「予定名」は予定として必ず要るので、いちばん上に' +
+      '<p class="note">「予定名」は予定として必ず要るので、いちばん上に' +
       '固定しています。それ以外はここで並び替えられます。</p>';
 
     html += '<div class="card"><h3>持ちもののカテゴリ</h3><ul class="list">' +

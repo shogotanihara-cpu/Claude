@@ -51,9 +51,9 @@ var Store = (function () {
   /* 持ちものカテゴリの初期値。遠征を想定した並び */
   var DEFAULT_GEAR_CATS = ['貴重品', '現場グッズ', '電子機器', '衣類', '現地で買う'];
 
-  /* 予定編集シートの並び替え可能な項目。種別と予定名は無いと成立しないので
+  /* 予定編集シートの並び替え可能な項目。予定名だけは無いと成立しないので
      固定にし、この並び替え対象には含めない（詳しくは item.js を参照）。 */
-  var DEFAULT_ITEM_ORDER = ['kind', 'datetime', 'duration', 'place', 'memo'];
+  var DEFAULT_ITEM_ORDER = ['cat', 'kind', 'datetime', 'duration', 'place', 'memo'];
 
   var state = null;
   var listeners = [];

@@ -10,8 +10,8 @@
    24時間を足す（例：23:00開始→00:30終了＝90分）。エラーにはしない。
    夜遅い予定（ライブ終演など）のほうがこのアプリでは普通に起きるため。
 
-   種別・予定名の2つは、無いと予定として成立しないので並び替えの対象に
-   しない。それ以外の項目ブロックは、設定タブで決めた順に並べる。
+   予定名だけは、無いと予定として成立しないので並び替えの対象にしない。
+   それ以外の項目ブロック（種別を含む）は、設定タブで決めた順に並べる。
    ───────────────────────────────────────── */
 
 var Item = (function () {
@@ -41,6 +41,8 @@ var Item = (function () {
     var end = time ? UI.fromMin(UI.toMin(time) + dur) : '';
 
     var blocks = {
+      cat: field('種別', catPicker()),
+
       kind: field('記録のしかた',
         '<div class="pick" id="kindPick">' +
           pickBtn('span', '期間', kind === 'span') +
@@ -94,8 +96,6 @@ var Item = (function () {
     var order = Store.itemOrder();
     var body =
       '<p class="form-error" id="itemError" role="alert"></p>' +
-
-      field('種別', catPicker()) +
 
       field('予定名',
         '<input type="text" id="itemName" placeholder="例：物販に並ぶ" ' +
