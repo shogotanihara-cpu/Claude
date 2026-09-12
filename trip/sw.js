@@ -7,7 +7,7 @@
    ASSETS に実在しないファイルが1つでも混じると addAll が失敗し、
    オフラインが丸ごと効かなくなる。ファイルを足したらここも必ず足すこと。 */
 
-var CACHE = 'shiori-v2';
+var CACHE = 'shiori-v3';
 
 var ASSETS = [
   './',

@@ -11,6 +11,16 @@
 var App = (function () {
   'use strict';
 
+  /* 予定編集シートの並び替え対象。種別・予定名は無いと予定が成立しないので
+     ここには含めず、常に先頭に固定する（item.js を参照）。 */
+  var ITEM_ORDER_LABELS = {
+    kind: '記録のしかた（期間・点）',
+    datetime: '日付・開始時刻',
+    duration: '所要時間・終了時刻・費用',
+    place: '場所・路線',
+    memo: 'メモ'
+  };
+
   var TABS = [
     { key: 'plan', label: '行程', icon: 'plan' },
     { key: 'gear', label: '持ちもの', icon: 'gear' },
@@ -98,6 +108,11 @@ var App = (function () {
           '</li>';
       }).join('') + '</ul></div>';
 
+    html += '<div class="card"><h3>予定入力フォームの並び順</h3><ul class="list">' +
+      orderItemsHtml() + '</ul></div>' +
+      '<p class="note">「種別」と「予定名」は予定として必ず要るので、いちばん上に' +
+      '固定しています。それ以外はここで並び替えられます。</p>';
+
     html += '<div class="card"><h3>持ちもののカテゴリ</h3><ul class="list">' +
       trip.gearCats.map(function (c, i) {
         var n = trip.gear.filter(function (g) { return g.cat === c; }).length;
@@ -162,6 +177,12 @@ var App = (function () {
       var down = e.target.closest ? e.target.closest('[data-cat-down]') : null;
       if (down) { swapCat(+down.dataset.catDown, 1); return; }
 
+      var orderUp = e.target.closest ? e.target.closest('[data-item-order-up]') : null;
+      if (orderUp) { swapItemOrder(+orderUp.dataset.itemOrderUp, -1); return; }
+
+      var orderDown = e.target.closest ? e.target.closest('[data-item-order-down]') : null;
+      if (orderDown) { swapItemOrder(+orderDown.dataset.itemOrderDown, 1); return; }
+
       var del = e.target.closest ? e.target.closest('[data-cat-del]') : null;
       if (del) {
         var name = del.dataset.catDel;
@@ -190,6 +211,33 @@ var App = (function () {
     if (e.target.id === 'backupFile' && e.target.files && e.target.files[0]) {
       loadBackup(e.target.files[0]);
     }
+  }
+
+  function orderItemsHtml() {
+    var order = Store.itemOrder();
+    return order.map(function (key, i) {
+      return '<li class="list-row cat-row">' +
+        '<span class="order">' +
+          '<button type="button" data-item-order-up="' + i + '"' +
+            (i === 0 ? ' disabled' : '') + ' aria-label="上へ">' + UI.icon('up', 13) + '</button>' +
+          '<button type="button" data-item-order-down="' + i + '"' +
+            (i === order.length - 1 ? ' disabled' : '') +
+            ' aria-label="下へ">' + UI.icon('down', 13) + '</button>' +
+        '</span>' +
+        '<span class="list-main static"><span class="list-text"><b>' +
+          UI.esc(ITEM_ORDER_LABELS[key] || key) + '</b></span></span>' +
+        '</li>';
+    }).join('');
+  }
+
+  function swapItemOrder(index, dir) {
+    var list = Store.itemOrder();
+    var to = index + dir;
+    if (to < 0 || to >= list.length) return;
+    var tmp = list[to];
+    list[to] = list[index];
+    list[index] = tmp;
+    Store.setItemOrder(list);
   }
 
   function swapCat(index, dir) {

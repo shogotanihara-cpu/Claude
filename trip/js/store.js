@@ -13,13 +13,14 @@
 
    予定1件。
 
-     { id, kind, cat, title, day, time, dur, cost, place, memo }
+     { id, kind, cat, title, day, time, dur, cost, place, memo, locked }
 
      - kind は 'span'（期間）か 'point'（時刻だけ）。開場・開演のように
        「その時刻であること」自体が情報の予定を point にする
      - day と time が両方 null なら「行き先候補」。まだ時刻を決めていない
        行きたい場所で、あとから空いている時間帯に置く
      - dur は分。point では常に 0
+     - locked は true でドラッグ移動を禁止する（既定 false）
 
    持ちもの1件。
 
@@ -28,6 +29,15 @@
      - linkId は予定のid。「開場 で使う」のように予定と結びつける
      - cat が gearCats に無い名前なら「その他」の扱いになる（カテゴリを
        消しても持ちものは消えない）
+
+   予定の locked は、行程画面でドラッグして動かせないようにする印。
+   既定は false。旧データには無い項目なので、normalizeItem で
+   足りない分だけ補う（既存の記録は消さない）。
+
+   settings はアプリ全体の設定（旅行をまたいで1つだけ）。
+   itemOrder は予定編集シートの項目の並び順。
+
+     { itemOrder: [ '記録のしかた' 等のキー, ... ] }
 
    保存先は端末のブラウザ内だけ。サーバーには何も送らない。
    ───────────────────────────────────────── */
@@ -40,6 +50,10 @@ var Store = (function () {
 
   /* 持ちものカテゴリの初期値。遠征を想定した並び */
   var DEFAULT_GEAR_CATS = ['貴重品', '現場グッズ', '電子機器', '衣類', '現地で買う'];
+
+  /* 予定編集シートの並び替え可能な項目。種別と予定名は無いと成立しないので
+     固定にし、この並び替え対象には含めない（詳しくは item.js を参照）。 */
+  var DEFAULT_ITEM_ORDER = ['kind', 'datetime', 'duration', 'place', 'memo'];
 
   var state = null;
   var listeners = [];
@@ -59,7 +73,7 @@ var Store = (function () {
   }
 
   function blank() {
-    return { version: VERSION, trips: [], currentId: null };
+    return { version: VERSION, trips: [], currentId: null, settings: normalizeSettings(null) };
   }
 
   /* ── 読み込みと世代移行 ───────────────────────── */
@@ -72,12 +86,28 @@ var Store = (function () {
 
     out.trips = Array.isArray(s.trips) ? s.trips.map(normalizeTrip) : [];
     out.currentId = s.currentId || null;
+    out.settings = normalizeSettings(s.settings);
 
     if (!out.trips.length) out.trips.push(newTripObject('新しい旅行'));
     if (!findTrip(out.trips, out.currentId)) out.currentId = pickDefault(out.trips).id;
 
     out.version = VERSION;
     return out;
+  }
+
+  /* 並び順に未知のキーが混じっていたら捨て、重複は最初の1つだけ残し、
+     足りないキーは末尾に補う。新しく項目を足したときに既存の並び順
+     データが古いままでも、その項目が消えず末尾に出てくるようにするため。 */
+  function normalizeSettings(s) {
+    var o = (s && typeof s === 'object') ? s : {};
+    var order = Array.isArray(o.itemOrder)
+      ? o.itemOrder.filter(function (k) { return DEFAULT_ITEM_ORDER.indexOf(k) >= 0; })
+      : [];
+    order = order.filter(function (k, i) { return order.indexOf(k) === i; });
+    DEFAULT_ITEM_ORDER.forEach(function (k) {
+      if (order.indexOf(k) < 0) order.push(k);
+    });
+    return { itemOrder: order };
   }
 
   function normalizeTrip(t, n) {
@@ -113,7 +143,8 @@ var Store = (function () {
       dur: (kind === 'point') ? 0 : Math.max(0, +o.dur || 0),
       cost: Math.max(0, +o.cost || 0),
       place: o.place || '',
-      memo: o.memo || ''
+      memo: o.memo || '',
+      locked: !!o.locked
     };
   }
 
@@ -301,6 +332,16 @@ var Store = (function () {
     commit();
   }
 
+  /* 予定編集シートの項目の並び順。旅行ごとではなく、アプリ全体で1つ。
+     旅行に紐づく commit() は使わず、直接 persist する。 */
+  function itemOrder() { return state.settings.itemOrder.slice(); }
+
+  function setItemOrder(list) {
+    state.settings = normalizeSettings({ itemOrder: list });
+    persist();
+    emit();
+  }
+
   /* カテゴリを消しても持ちものは残す。行き場のなくなったものは
      「その他」に落ちる（gearCats に無い cat は その他 扱い）。 */
   function removeGearCat(name) {
@@ -367,6 +408,9 @@ var Store = (function () {
     toggleGear: toggleGear,
     setGearCats: setGearCats,
     removeGearCat: removeGearCat,
+    itemOrder: itemOrder,
+    setItemOrder: setItemOrder,
+    defaultItemOrder: function () { return DEFAULT_ITEM_ORDER.slice(); },
     clearCurrentContents: clearCurrentContents,
     canUndo: canUndo,
     undo: undo,

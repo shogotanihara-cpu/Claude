@@ -246,6 +246,28 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .placing button { margin-left: auto; color: inherit; text-decoration: underline; }
 
+.seg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.seg-row .seg { flex: 1; margin-top: 0; }
+.print-btn {
+  flex: none;
+  width: 36px; height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+/* 一望表示専用の日付見出し。画面では出さず、印刷のときだけ出す
+   （画面のヘッダーはいまの1日ぶんしか出ないため、印刷では各日ページに
+   持たせる）。 */
+.print-daylabel { display: none; }
+
 /* ── 行程：日ページ ───────────────────────── */
 
 .days {
@@ -352,6 +374,14 @@ input, select, textarea { font: inherit; color: inherit; }
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
 }
+.block-lock {
+  position: absolute;
+  top: 3px; right: 4px;
+  color: var(--faint);
+  pointer-events: none;
+}
+.block-lock svg { display: block; }
+
 /* 前の予定の終わりが次の始まりを追い越している。隠さず印を出す */
 .block.is-conflict { box-shadow: 0 0 0 1.5px var(--now), var(--shadow); }
 .block.dragging {
@@ -364,6 +394,11 @@ input, select, textarea { font: inherit; color: inherit; }
 .grid.is-fit .block-title { font-size: 10.5px; font-weight: 500; }
 .grid.is-fit .point-label { display: none; }
 .grid.is-placing .lane { background: var(--brand-soft); }
+
+/* 中間倍率。通常よりは詰めるが、一望ほど潰さない。予定名までは残す */
+.grid.is-mid .block { padding: 2px 6px; border-radius: 6px; }
+.grid.is-mid .block-title { font-size: 11px; }
+.grid.is-mid .block-lock { transform: scale(.85); top: 2px; right: 3px; }
 
 .point {
   position: absolute;
@@ -601,13 +636,18 @@ i.sw.c-etc  { background: var(--c-etc); }
 }
 
 .cat-select {
-  max-width: 104px;
+  max-width: 116px;
   padding: 5px 4px;
   border-radius: 7px;
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--muted);
-  font-size: 11px;
+  /* select もフォーカスでズームの対象になる。16px未満にしない。 */
+  font-size: 12.5px;
+}
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari だけ、フォーカス時のズームを避けるため実サイズを16pxにする */
+  .cat-select { font-size: 16px; }
 }
 
 .order { display: flex; flex-direction: column; gap: 3px; }
@@ -673,7 +713,9 @@ i.sw.c-etc  { background: var(--c-etc); }
   border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--surface-2);
-  font-size: 14px;
+  /* iOSのSafariはfont-sizeが16px未満の入力欄にフォーカスすると
+     自動でズームする。16px以上にしてズームさせない。 */
+  font-size: 16px;
 }
 .addrow select { max-width: 124px; }
 .addrow input[type="date"] { font-variant-numeric: tabular-nums; }
@@ -840,14 +882,29 @@ i.sw.c-etc  { background: var(--c-etc); }
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--surface-2);
-  font-size: 15px;
+  /* iOSのSafariはfont-sizeが16px未満の入力欄にフォーカスすると
+     自動でズームし、画面がはみ出て見える。16px以上にして防ぐ。 */
+  font-size: 16px;
 }
 .form-row input[type="time"],
 .form-row input[type="number"] { font-variant-numeric: tabular-nums; }
-.form-row textarea { resize: vertical; min-height: 62px; font-size: 14px; line-height: 1.65; }
+.form-row textarea { resize: vertical; min-height: 62px; font-size: 16px; line-height: 1.65; }
 
 .form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .form-pair .form-row { margin-bottom: 13px; }
+.form-pair .form-row input[type="time"] {
+  /* ネイティブの時刻入力は横に伸びる部品なので、2カラムの狭いセルでは
+     paddingを削って収める（はみ出す端末があったため）。 */
+  padding-left: 8px;
+  padding-right: 6px;
+  min-width: 0;
+}
+
+/* 375px前後の狭い画面では、日付＋開始時刻の2カラムだと時刻の見た目が
+   セルからはみ出す端末があるため、この幅から下は縦積みに変える。 */
+@media (max-width: 380px) {
+  .form-pair.form-pair-datetime { grid-template-columns: 1fr; }
+}
 
 .form-hint { font-size: 11.5px; line-height: 1.7; color: var(--faint); }
 .form-error { color: var(--now); font-size: 12.5px; margin-bottom: 10px; }
@@ -925,4 +982,65 @@ i.sw.c-etc  { background: var(--c-etc); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ── 印刷 ─────────────────────────
+   タブや戻る系のUIは紙に出す意味が無いので消し、行程の中身だけを出す。
+   1日1画面のスワイプ表示は印刷に向かないので、全日ぶんを縦に並べ直す。 */
+@media print {
+  .tabbar, .dock, .sheet-host, .toast-host,
+  .daynav, .seg-row, .placing {
+    display: none !important;
+  }
+
+  html, body {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+  }
+
+  .view, .view-plan {
+    max-width: none;
+    overflow: visible;
+    padding: 0;
+    height: auto;
+  }
+
+  .plan-top { border-bottom: 0; padding: 0; }
+
+  .days {
+    display: block;
+    overflow: visible;
+  }
+
+  .daypage {
+    display: block;
+    width: auto;
+    break-inside: avoid;
+    page-break-after: always;
+  }
+  .daypage:last-child { page-break-after: auto; }
+
+  .dayscroll {
+    overflow: visible;
+    height: auto !important;
+    padding: 0;
+  }
+
+  .print-daylabel {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 6px 0;
+  }
+
+  /* .grid の高さは1日ぶんの時間軸そのもの（JSがpxで直接指定）。
+     ここを auto にすると中身が絶対配置だけの空箱になって潰れるので触らない。 */
+
+  .block, .point, i.sw {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .nowline { display: none; }
 }

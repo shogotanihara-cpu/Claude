@@ -5,8 +5,13 @@
    行き先候補から開いても、追加ボタンからでも同じシートが出る。
    画面ごとに似たフォームを持つと、項目を足すたび直す場所が増えるため。
 
-   終了時刻は「開始＋所要」で自動的に決まる。手で入れる欄は作らず、
-   自動で決まったことが分かる見た目（破線のバッジ）で見せる。
+   開始時刻・所要時間・終了時刻はどれからでも直せる（双方向に同期する）。
+   終了時刻が開始時刻より前になったら、日をまたいだとみなして
+   24時間を足す（例：23:00開始→00:30終了＝90分）。エラーにはしない。
+   夜遅い予定（ライブ終演など）のほうがこのアプリでは普通に起きるため。
+
+   種別・予定名の2つは、無いと予定として成立しないので並び替えの対象に
+   しない。それ以外の項目ブロックは、設定タブで決めた順に並べる。
    ───────────────────────────────────────── */
 
 var Item = (function () {
@@ -15,6 +20,7 @@ var Item = (function () {
   var editingId = null;
   var kind = 'span';
   var cat = 'see';
+  var locked = false;
 
   /* ── 予定の編集シート ───────────────────────── */
 
@@ -26,11 +32,66 @@ var Item = (function () {
     editingId = it ? it.id : null;
     kind = it ? it.kind : 'span';
     cat = it ? it.cat : (presetCat || 'see');
+    locked = it ? !!it.locked : false;
 
     var days = Model.daysOf(trip);
     var day = it ? it.day : (presetDay || days[0]);
     var time = it ? it.time : (presetTime || suggestTime(trip, presetDay || days[0]));
+    var dur = it ? (+it.dur || 0) : 60;
+    var end = time ? UI.fromMin(UI.toMin(time) + dur) : '';
 
+    var blocks = {
+      kind: field('記録のしかた',
+        '<div class="pick" id="kindPick">' +
+          pickBtn('span', '期間', kind === 'span') +
+          pickBtn('point', '点（時刻だけ）', kind === 'point') +
+        '</div>' +
+        '<p class="form-hint">開場・開演のように、その時刻であること自体が' +
+        '大事な予定は「点」にすると右の列に並びます。</p>'),
+
+      datetime:
+        '<div class="form-pair form-pair-datetime">' +
+          field('日付',
+            '<select id="itemDay">' +
+              '<option value=""' + (day ? '' : ' selected') + '>（行き先候補）</option>' +
+              days.map(function (d) {
+                return '<option value="' + d + '"' + (d === day ? ' selected' : '') + '>' +
+                  UI.dateLabel(d) + '</option>';
+              }).join('') +
+            '</select>') +
+          field('開始時刻',
+            '<input type="time" id="itemTime" value="' + UI.esc(time || '') + '">') +
+        '</div>',
+
+      duration:
+        '<div class="form-pair" id="durRow"' + (kind === 'point' ? ' hidden' : '') + '>' +
+          field('所要時間（分）',
+            '<input type="number" id="itemDur" min="0" max="1440" step="5" value="' + dur + '">') +
+          field('終了時刻',
+            '<input type="time" id="itemEnd" value="' + UI.esc(end) + '">') +
+        '</div>' +
+        '<div id="costRowSpan"' + (kind === 'point' ? ' hidden' : '') + '>' +
+          field('費用（円）',
+            '<input type="number" id="itemCost" min="0" step="100" ' +
+            'value="' + (it ? (+it.cost || 0) : 0) + '">') +
+        '</div>' +
+        '<div class="form-pair" id="costRow"' + (kind === 'point' ? '' : ' hidden') + '>' +
+          field('費用（円）',
+            '<input type="number" id="itemCostPoint" min="0" step="100" ' +
+            'value="' + (it ? (+it.cost || 0) : 0) + '">') +
+        '</div>',
+
+      place: field('場所・路線',
+        '<input type="text" id="itemPlace" placeholder="例：日本ガイシホール" ' +
+        'value="' + UI.esc(it ? it.place : '') + '">'),
+
+      memo: field('メモ',
+        '<textarea id="itemMemo" rows="3" ' +
+        'placeholder="座席番号、持ちもの、混雑の傾向など">' +
+        UI.esc(it ? it.memo : '') + '</textarea>')
+    };
+
+    var order = Store.itemOrder();
     var body =
       '<p class="form-error" id="itemError" role="alert"></p>' +
 
@@ -40,52 +101,17 @@ var Item = (function () {
         '<input type="text" id="itemName" placeholder="例：物販に並ぶ" ' +
         'value="' + UI.esc(it ? it.title : '') + '">') +
 
-      field('記録のしかた',
-        '<div class="pick" id="kindPick">' +
-          pickBtn('span', '期間', kind === 'span') +
-          pickBtn('point', '点（時刻だけ）', kind === 'point') +
+      order.map(function (k) { return blocks[k] || ''; }).join('') +
+
+      '<div class="form-row">' +
+        '<label>ロック</label>' +
+        '<div class="pick">' +
+          '<button type="button" id="lockToggle" aria-pressed="' + locked + '">' +
+            UI.icon('lock', 15) + '<span>' + (locked ? 'ロック中' : 'ロックしない') + '</span>' +
+          '</button>' +
         '</div>' +
-        '<p class="form-hint">開場・開演のように、その時刻であること自体が' +
-        '大事な予定は「点」にすると右の列に並びます。</p>') +
-
-      '<div class="form-pair">' +
-        field('日付',
-          '<select id="itemDay">' +
-            '<option value=""' + (day ? '' : ' selected') + '>（行き先候補）</option>' +
-            days.map(function (d) {
-              return '<option value="' + d + '"' + (d === day ? ' selected' : '') + '>' +
-                UI.dateLabel(d) + '</option>';
-            }).join('') +
-          '</select>') +
-        field('開始時刻',
-          '<input type="time" id="itemTime" value="' + UI.esc(time || '') + '">') +
+        '<p class="form-hint">ロックすると、行程画面でドラッグして動かせなくなります。</p>' +
       '</div>' +
-
-      '<div class="form-pair" id="durRow"' + (kind === 'point' ? ' hidden' : '') + '>' +
-        field('所要時間（分）',
-          '<input type="number" id="itemDur" min="0" max="1440" step="5" ' +
-          'value="' + (it ? (+it.dur || 0) : 60) + '">') +
-        field('費用（円）',
-          '<input type="number" id="itemCost" min="0" step="100" ' +
-          'value="' + (it ? (+it.cost || 0) : 0) + '">') +
-      '</div>' +
-
-      '<div class="form-pair" id="costRow"' + (kind === 'point' ? '' : ' hidden') + '>' +
-        field('費用（円）',
-          '<input type="number" id="itemCostPoint" min="0" step="100" ' +
-          'value="' + (it ? (+it.cost || 0) : 0) + '">') +
-      '</div>' +
-
-      '<p class="auto-line" id="endLine"></p>' +
-
-      field('場所・路線',
-        '<input type="text" id="itemPlace" placeholder="例：日本ガイシホール" ' +
-        'value="' + UI.esc(it ? it.place : '') + '">') +
-
-      field('メモ',
-        '<textarea id="itemMemo" rows="3" ' +
-        'placeholder="座席番号、持ちもの、混雑の傾向など">' +
-        UI.esc(it ? it.memo : '') + '</textarea>') +
 
       (it ? '<button type="button" class="btn-danger" id="itemDelete">この予定を削除</button>' : '');
 
@@ -95,7 +121,7 @@ var Item = (function () {
 
     UI.openSheet(it ? '予定を編集' : '予定を追加', body, foot,
       { click: onEditorClick, input: onEditorInput });
-    refreshEnd();
+    syncEndFromDur();
 
     if (!it) {
       setTimeout(function () {
@@ -144,13 +170,15 @@ var Item = (function () {
     }
     var k = e.target.closest ? e.target.closest('[data-kind]') : null;
     if (k) { setKind(k.dataset.kind); return; }
+    if (e.target.closest && e.target.closest('#lockToggle')) { toggleLock(); return; }
     if (e.target.closest && e.target.closest('#itemSave')) { commit(); return; }
     if (e.target.closest && e.target.closest('#itemDelete')) { destroy(); return; }
     if (e.target.closest && e.target.closest('#itemToCand')) { toCandidate(); return; }
   }
 
   function onEditorInput(e) {
-    if (e.target.id === 'itemTime' || e.target.id === 'itemDur') refreshEnd();
+    if (e.target.id === 'itemTime' || e.target.id === 'itemDur') syncEndFromDur();
+    else if (e.target.id === 'itemEnd') syncDurFromEnd();
   }
 
   function setKind(next) {
@@ -160,20 +188,51 @@ var Item = (function () {
       btns[i].setAttribute('aria-pressed', btns[i].dataset.kind === kind);
     }
     /* 点には所要時間が無い。欄ごと隠して、費用だけの行に差し替える */
-    document.getElementById('durRow').hidden = (kind === 'point');
-    document.getElementById('costRow').hidden = (kind !== 'point');
-    refreshEnd();
+    var durRow = document.getElementById('durRow');
+    var costRowSpan = document.getElementById('costRowSpan');
+    var costRow = document.getElementById('costRow');
+    if (durRow) durRow.hidden = (kind === 'point');
+    if (costRowSpan) costRowSpan.hidden = (kind === 'point');
+    if (costRow) costRow.hidden = (kind !== 'point');
+    syncEndFromDur();
   }
 
-  function refreshEnd() {
-    var line = document.getElementById('endLine');
-    if (!line) return;
-    var t = document.getElementById('itemTime').value;
-    if (kind === 'point' || !t) { line.hidden = true; return; }
-    var dur = Math.max(0, +document.getElementById('itemDur').value || 0);
-    line.hidden = false;
-    line.innerHTML = '終了 <b>' + UI.fromMin(UI.toMin(t) + dur) + '</b>' +
-      '<span class="auto-badge">自動</span>';
+  function toggleLock() {
+    locked = !locked;
+    var btn = document.getElementById('lockToggle');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', locked);
+    var label = btn.querySelector('span');
+    if (label) label.textContent = locked ? 'ロック中' : 'ロックしない';
+  }
+
+  /* 開始時刻・所要時間から終了時刻を出す。開始を動かしても所要時間は
+     変えず、終わりのほうがずれる（期間の長さを保つほうが自然なため）。 */
+  function syncEndFromDur() {
+    var end = document.getElementById('itemEnd');
+    var timeEl = document.getElementById('itemTime');
+    var durEl = document.getElementById('itemDur');
+    if (!end || !timeEl || !durEl) return;
+    var t = timeEl.value;
+    if (!t) { end.value = ''; return; }
+    var dur = Math.max(0, +durEl.value || 0);
+    end.value = UI.fromMin(UI.toMin(t) + dur);
+  }
+
+  /* 終了時刻から所要時間を出す。終了が開始より前なら、日をまたいだと
+     見なして24時間ぶん足す（同日の入力ミスを弾くより、深夜の予定を
+     素直に受け止めるほうが実際の旅程には合う）。 */
+  function syncDurFromEnd() {
+    var durEl = document.getElementById('itemDur');
+    var timeEl = document.getElementById('itemTime');
+    var endEl = document.getElementById('itemEnd');
+    if (!durEl || !timeEl || !endEl) return;
+    var t = timeEl.value;
+    var endVal = endEl.value;
+    if (!t || !endVal) return;
+    var diff = UI.toMin(endVal) - UI.toMin(t);
+    if (diff < 0) diff += 24 * 60;
+    durEl.value = Math.max(0, Math.min(1440, diff));
   }
 
   function currentCost() {
@@ -208,7 +267,8 @@ var Item = (function () {
       dur: (kind === 'point') ? 0 : Math.max(0, +document.getElementById('itemDur').value || 0),
       cost: currentCost(),
       place: document.getElementById('itemPlace').value.trim(),
-      memo: document.getElementById('itemMemo').value.trim()
+      memo: document.getElementById('itemMemo').value.trim(),
+      locked: locked
     });
 
     if (day) App.goToDay(day);
@@ -228,7 +288,8 @@ var Item = (function () {
     if (!it) return;
     Store.saveItem({
       id: it.id, kind: it.kind, cat: it.cat, title: it.title,
-      day: null, time: null, dur: it.dur, cost: it.cost, place: it.place, memo: it.memo
+      day: null, time: null, dur: it.dur, cost: it.cost, place: it.place, memo: it.memo,
+      locked: it.locked
     });
     UI.closeSheet();
     UI.toast('「' + it.title + '」を行き先候補に戻しました');
@@ -296,7 +357,7 @@ var Item = (function () {
     if (sel) sel.value = '';
     var t = document.getElementById('itemTime');
     if (t) t.value = '';
-    refreshEnd();
+    syncEndFromDur();
   }
 
   return {

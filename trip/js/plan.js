@@ -8,8 +8,9 @@
    何も置かれていない時間帯が「余白」として見える。空きを文字で
    「空き30分」と書くより、空間として見えることのほうが組み立てには効く。
 
-   倍率は2段。
+   倍率は3段。
      通常 … 1時間44px。地名や費用まで読める。縦にスクロールする
+     中間 … 1時間24px前後。予定名は読めるが、地名・費用までは出さない
      一望 … 24時間を画面の高さに収める。文字は消えて色帯だけになるが、
              どの時間帯が空いているかが一目で分かる
 
@@ -19,14 +20,16 @@
 var Plan = (function () {
   'use strict';
 
-  var PX_PER_HOUR = 44;    // 通常表示。1時間あたりの高さ
+  var PX_PER_HOUR = 44;      // 通常表示。1時間あたりの高さ
+  var PX_PER_HOUR_MID = 24;  // 中間表示
   var MIN_BLOCK = 20;      // 短い予定でもこの高さは確保する（文字が入る下限）
+  var MIN_BLOCK_MID = 13;  // 中間では予定名の1行ぶんが入れば足りる
   var MIN_BLOCK_FIT = 9;   // 一望では色帯として見えれば足りる
   var SNAP = 5;            // ドラッグ・行き先候補を「置く」ときの丸め（分）
   var TAP_SNAP = 15;       // 空いている場所をタップして追加するときの丸め（分）
 
   var dayIndex = 0;
-  var fit = false;
+  var mode = 'normal';     // 'normal' | 'mid' | 'fit'
   var placingId = null;    // 行き先候補から「置く」を押した状態
   var drag = null;
   var suppressClick = null;   // 直後のクリックを無視する対象の予定id。他の予定は素通しする
@@ -51,15 +54,21 @@ var Plan = (function () {
           navBtn('next', '次の日') +
           '<button type="button" class="chip-today" id="todayBtn">今日</button>' +
         '</div>' +
-        '<div class="seg" role="group" aria-label="表示の倍率">' +
-          '<button type="button" data-fit="0" aria-pressed="' + (!fit) + '">通常</button>' +
-          '<button type="button" data-fit="1" aria-pressed="' + fit + '">一望</button>' +
+        '<div class="seg-row">' +
+          '<div class="seg" role="group" aria-label="表示の倍率">' +
+            '<button type="button" data-mode="normal" aria-pressed="' + (mode === 'normal') + '">通常</button>' +
+            '<button type="button" data-mode="mid" aria-pressed="' + (mode === 'mid') + '">中間</button>' +
+            '<button type="button" data-mode="fit" aria-pressed="' + (mode === 'fit') + '">一望</button>' +
+          '</div>' +
+          '<button type="button" class="print-btn" id="printBtn" aria-label="印刷する">' +
+            UI.icon('print', 18) + '</button>' +
         '</div>' +
         (placingId ? placingBanner() : '') +
       '</div>' +
       '<div class="days" id="days">' +
         days.map(function (d) {
           return '<section class="daypage" data-day="' + d + '">' +
+            '<h3 class="print-daylabel">' + UI.esc(trip.title) + ' ・ ' + UI.esc(UI.dateLabel(d)) + '</h3>' +
             '<div class="dayscroll"></div></section>';
         }).join('') +
       '</div>' +
@@ -96,7 +105,8 @@ var Plan = (function () {
 
   /* 1時間あたりの高さ。一望では画面に収まるところまで詰める */
   function pxPerHour() {
-    if (!fit) return PX_PER_HOUR;
+    if (mode === 'mid') return PX_PER_HOUR_MID;
+    if (mode !== 'fit') return PX_PER_HOUR;
     var el = document.querySelector('.dayscroll');
     var h = el ? el.clientHeight - 18 : 420;
     return Math.max(11, h / 24);
@@ -112,9 +122,10 @@ var Plan = (function () {
     var points = Model.pointsOf(all);
     var placed = Model.layout(spans);
     var bad = Model.conflicts(spans);
-    var minH = fit ? MIN_BLOCK_FIT : MIN_BLOCK;
+    var minH = (mode === 'fit') ? MIN_BLOCK_FIT : (mode === 'mid') ? MIN_BLOCK_MID : MIN_BLOCK;
 
-    var html = '<div class="grid' + (fit ? ' is-fit' : '') +
+    var html = '<div class="grid' + (mode === 'fit' ? ' is-fit' : '') +
+      (mode === 'mid' ? ' is-mid' : '') +
       (placingId ? ' is-placing' : '') + '" style="height:' + (H * 24 + 12) + 'px">';
 
     /* 時刻の目盛り。2時間ごとに数字、1時間ごとに線 */
@@ -129,7 +140,7 @@ var Plan = (function () {
     }
 
     /* 空き時間の枠。一望では余白そのものが見えるので出さない */
-    if (!fit) {
+    if (mode !== 'fit') {
       Model.freeGaps(spans).forEach(function (gap) {
         html += '<div class="freegap" style="top:' + (gap.start * H / 60 + 3) +
           'px; height:' + ((gap.end - gap.start) * H / 60 - 6) + 'px">' +
@@ -147,13 +158,15 @@ var Plan = (function () {
       if (dur) meta.push(it.time + '–' + UI.fromMin(UI.toMin(it.time) + dur));
       if (it.place) meta.push(it.place);
       if (+it.cost) meta.push(UI.yen(it.cost));
+      if (it.memo) meta.push(it.memo);
 
       html += '<div class="block c-' + it.cat + (bad[it.id] ? ' is-conflict' : '') + '" ' +
         'data-item="' + it.id + '" ' +
         'style="top:' + top + 'px; height:' + height + 'px; ' +
         'left:calc(' + (r.col * w) + '% + 4px); width:calc(' + w + '% - 8px)">' +
+        (it.locked ? '<span class="block-lock">' + UI.icon('lock', 10) + '</span>' : '') +
         (height >= 14 ? '<span class="block-title">' + UI.esc(it.title) + '</span>' : '') +
-        (height > 30 && !fit
+        (height > 30 && mode === 'normal'
           ? '<span class="block-meta">' + UI.esc(meta.join('　')) + '</span>' : '') +
         '</div>';
     });
@@ -175,7 +188,7 @@ var Plan = (function () {
 
     /* 最初の予定のあたりまで送っておく。0:00 から始まると
        毎回スクロールしてからでないと旅程が見えないため。 */
-    if (isCurrent && !fit) {
+    if (isCurrent && mode !== 'fit') {
       var first = spans.length ? UI.toMin(spans[0].time)
         : (points.length ? UI.toMin(points[0].time) : 8 * 60);
       scroller.scrollTop = Math.max(0, first * H / 60 - 40);
@@ -204,8 +217,13 @@ var Plan = (function () {
       var step = e.target.closest ? e.target.closest('[data-day-step]') : null;
       if (step) { go(dayIndex + (+step.dataset.dayStep)); return; }
 
-      var seg = e.target.closest ? e.target.closest('[data-fit]') : null;
-      if (seg) { setFit(seg.dataset.fit === '1'); return; }
+      var seg = e.target.closest ? e.target.closest('[data-mode]') : null;
+      if (seg) { setMode(seg.dataset.mode); return; }
+
+      if (e.target.closest && e.target.closest('#printBtn')) {
+        window.print();
+        return;
+      }
 
       if (e.target.closest && e.target.closest('#todayBtn')) {
         var days = Model.daysOf(Store.current());
@@ -271,8 +289,9 @@ var Plan = (function () {
     updateLabel(Store.current(), days);
   }
 
-  function setFit(next) {
-    fit = next;
+  function setMode(next) {
+    if (next !== 'normal' && next !== 'mid' && next !== 'fit') return;
+    mode = next;
     App.renderCurrent();
   }
 
@@ -308,7 +327,7 @@ var Plan = (function () {
     Store.saveItem({
       id: it.id, kind: it.kind, cat: it.cat, title: it.title,
       day: lane.dataset.lane, time: UI.fromMin(minutes),
-      dur: it.dur, cost: it.cost, place: it.place, memo: it.memo
+      dur: it.dur, cost: it.cost, place: it.place, memo: it.memo, locked: it.locked
     });
     placingId = null;
     App.renderCurrent();
@@ -326,6 +345,7 @@ var Plan = (function () {
     if (!blk) return;
     var it = Store.itemById(blk.dataset.item);
     if (!it) return;
+    if (it.locked) return;   // ロック中はドラッグを始めない。タップは click 側で拾う
     drag = {
       el: blk,
       id: it.id,
@@ -368,7 +388,7 @@ var Plan = (function () {
     Store.saveItem({
       id: it.id, kind: it.kind, cat: it.cat, title: it.title,
       day: it.day, time: UI.fromMin(d.minutes),
-      dur: it.dur, cost: it.cost, place: it.place, memo: it.memo
+      dur: it.dur, cost: it.cost, place: it.place, memo: it.memo, locked: it.locked
     });
   }
 
