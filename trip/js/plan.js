@@ -28,7 +28,7 @@ var Plan = (function () {
   var fit = false;
   var placingId = null;    // 行き先候補から「置く」を押した状態
   var drag = null;
-  var suppressClick = false;
+  var suppressClick = null;   // 直後のクリックを無視する対象の予定id。他の予定は素通しする
 
   /* ── 描画 ───────────────────────── */
 
@@ -219,9 +219,10 @@ var Plan = (function () {
 
       var blk = e.target.closest ? e.target.closest('[data-item]') : null;
       if (blk) {
-        /* ドラッグの直後にも click は飛ぶ。移動したばかりの予定の
-           シートが勝手に開かないよう、1回だけ捨てる。 */
-        if (suppressClick) { suppressClick = false; return; }
+        /* ドラッグの直後にも click は飛ぶ。移動したばかりの予定自身への
+           クリックだけ1回捨てる。他の予定へのクリックまで巻き込むと、
+           「動かした直後に別の予定を開こうとしたら反応しない」になるため。 */
+        if (suppressClick === blk.dataset.item) { suppressClick = null; return; }
         Item.open(blk.dataset.item);
       }
     }
@@ -340,7 +341,7 @@ var Plan = (function () {
     drag = null;
     d.el.classList.remove('dragging');
     if (d.moved < 6) return;      // タップ。click 側でシートを開く
-    suppressClick = true;
+    suppressClick = d.id;
     if (d.minutes === null) return;
     var it = Store.itemById(d.id);
     if (!it) return;
