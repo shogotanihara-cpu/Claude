@@ -1,6 +1,6 @@
 {
-  "name": "しおり - 旅の予定と持ちもの",
-  "short_name": "しおり",
+  "name": "シオリ - 旅の予定と持ちもの",
+  "short_name": "シオリ",
   "description": "旅の予定を24時間のタイムラインに置いて組み立てるアプリ。空いている時間帯が余白として見えます。行き先候補と持ちものも一緒にまとまります。データはお使いの端末の中だけに保存されます。",
   "lang": "ja",
   "start_url": "./index.html",
@@ -9,7 +9,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f3f4f7",
-  "theme_color": "#8a3e5c",
+  "theme_color": "#4FB8E0",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

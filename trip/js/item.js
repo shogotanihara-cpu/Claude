@@ -18,14 +18,14 @@ var Item = (function () {
 
   /* ── 予定の編集シート ───────────────────────── */
 
-  function open(id, presetDay, presetTime) {
+  function open(id, presetDay, presetTime, presetCat) {
     var trip = Store.current();
     if (!trip) return;
 
     var it = id ? Store.itemById(id) : null;
     editingId = it ? it.id : null;
     kind = it ? it.kind : 'span';
-    cat = it ? it.cat : 'see';
+    cat = it ? it.cat : (presetCat || 'see');
 
     var days = Model.daysOf(trip);
     var day = it ? it.day : (presetDay || days[0]);
