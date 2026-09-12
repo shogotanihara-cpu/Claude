@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="シオリ">
+  <rect width="512" height="512" fill="#4FB8E0"/>
+  <rect x="150" y="130" width="14" height="252" rx="7" fill="#FFFFFF"/>
+  <rect x="186" y="130" width="186" height="66" rx="12" fill="#FFFFFF"/>
+  <rect x="186" y="216" width="186" height="100" rx="12" fill="#E0B25A"/>
+  <rect x="186" y="336" width="114" height="46" rx="12" fill="#CFE8F5"/>
+</svg>

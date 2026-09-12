@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>シオリ（収益版モックアップ） - 旅の予定と持ちもの</title>
+<meta name="description" content="旅の予定を24時間のタイムラインに置いて組み立てるアプリ。空いている時間帯が余白として見えます。行き先候補と持ちものも一緒にまとまります。これはアフィリエイト導線を検証するための収益版モックアップです。">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#101319" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="シオリ（収益版モックアップ） - 旅の予定と持ちもの">
+<meta property="og:description" content="旅の予定を24時間のタイムラインに置いて組み立てるアプリ。アフィリエイト導線を検証する収益版モックアップです。">
+<meta property="og:url" content="https://app.oshihitsuji.jp/trip-monetized/">
+<meta property="og:image" content="https://app.oshihitsuji.jp/trip-monetized/icons/icon-512.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="シオリ(モック)">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 本物のシオリ（/trip/）と見た目が同じなので、収益版モックアップである
+     ことが常に分かるよう、最上部に固定の帯を1本だけ入れてある。 -->
+<div class="mock-banner">収益版モックアップ ー 本物のシオリではありません</div>
+
+<main id="viewHost" class="view view-plan"></main>
+
+<nav class="tabbar" id="tabbar" aria-label="画面の切り替え"></nav>
+
+<div class="sheet-host" id="sheetHost" hidden></div>
+<div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/model.js"></script>
+<script src="js/item.js"></script>
+<script src="js/plan.js"></script>
+<script src="js/gear.js"></script>
+<script src="js/trips.js"></script>
+<script src="js/app.js"></script>
+<script>
+/* Service Worker はこのフォルダに置いてある。スコープが /trip-monetized/ に
+   閉じるので、隣のアプリ（/log/ /wake/ /trip/）のリクエストには手を出さない。 */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
