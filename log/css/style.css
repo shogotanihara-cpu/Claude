@@ -403,10 +403,15 @@ main {
 .row-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
 .row-val { font-size: 14px; font-weight: 700; }
 
-/* サマリーの表示順序（設定画面）の並べ替えボタン */
-.reorder-btns { display: flex; gap: 4px; }
+/* サマリー・カテゴリの並べ替えボタン */
+.reorder-btns { display: flex; gap: 4px; flex: 0 0 auto; }
 .reorder-btns .iconbtn { width: 30px; height: 30px; font-size: 13px; background: var(--surface-2); }
 .reorder-btns .iconbtn:disabled { opacity: .3; }
+
+/* カテゴリの行：編集を開くボタンと並べ替えボタンを横に並べる */
+.cat-row .row-click {
+  display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0; text-align: left;
+}
 
 .bar-track {
   height: 5px; background: var(--surface-2); border-radius: 999px;
@@ -435,7 +440,8 @@ main {
   position: absolute; border-radius: 2px; min-height: 2px;
 }
 .grid-dot {
-  position: absolute; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;
+  position: absolute; left: 50%; width: 5px; height: 5px;
+  margin-left: -2.5px; margin-top: -2.5px;
   border-radius: 50%; box-shadow: 0 0 0 1px var(--surface);
 }
 

@@ -621,16 +621,44 @@
 
   /* ═════════ 設定 ═════════ */
 
-  function renderSettings() {
-    var cats = Store.categories().map(function (c) {
-      return '<button class="row" data-editcat="' + c.id + '">' +
-        '<span class="swatch" style="background:' + c.color + '"></span>' +
-        '<div class="row-main"><div class="row-title">' + UI.esc(c.name) +
-          (c.quick ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">ワンタップ</span>' : '') +
+  function categoryRowsHTML() {
+    var list = Store.categories();
+    return list.map(function (c, i) {
+      return '<div class="row cat-row">' +
+        '<button class="row-click" data-editcat="' + c.id + '">' +
+          '<span class="swatch" style="background:' + c.color + '"></span>' +
+          '<div class="row-main"><div class="row-title">' + UI.esc(c.name) +
+            (c.quick ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">ワンタップ</span>' : '') +
+          '</div>' +
+          '<div class="row-sub">' + KIND_LABEL[c.kind] + '・' + Store.categoryUsage(c.id) + '件</div></div>' +
+          '<span style="color:var(--text-faint)">›</span>' +
+        '</button>' +
+        '<div class="reorder-btns">' +
+          '<button class="iconbtn" data-catmove="up" data-cat="' + c.id + '"' +
+            (i === 0 ? ' disabled' : '') + ' aria-label="上へ">▲</button>' +
+          '<button class="iconbtn" data-catmove="down" data-cat="' + c.id + '"' +
+            (i === list.length - 1 ? ' disabled' : '') + ' aria-label="下へ">▼</button>' +
         '</div>' +
-        '<div class="row-sub">' + KIND_LABEL[c.kind] + '・' + Store.categoryUsage(c.id) + '件</div></div>' +
-        '<span style="color:var(--text-faint)">›</span></button>';
+      '</div>';
     }).join('');
+  }
+
+  function bindCategoryOrder() {
+    UI.el('settingsBody').querySelectorAll('[data-catmove]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var order = Store.categories().map(function (c) { return c.id; });
+        var i = order.indexOf(b.dataset.cat);
+        var j = b.dataset.catmove === 'up' ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= order.length) return;
+        var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+        // persist() 経由で renderSettings() ごと描き直るので、ここでは並びを渡すだけでよい
+        Store.setCategoryOrder(order);
+      });
+    });
+  }
+
+  function renderSettings() {
+    var cats = categoryRowsHTML();
 
     UI.el('settingsBody').innerHTML =
       '<div class="card">' +
@@ -639,6 +667,15 @@
         '<p class="hint" style="margin-top:12px">点・体調はタイムライン下部のボタンから、' +
         'いつでも1回のタップで記録できます。「ワンタップ」にした期間カテゴリも、' +
         '同じくタイムライン下部に開始/終了ボタンとして出ます。</p>' +
+      '</div>' +
+
+      '<div class="card">' +
+        '<div class="card-title">記録の既定</div>' +
+        '<label class="check"><input type="checkbox" id="defaultOpenChk"' +
+          (Store.defaultOpenSpan() ? ' checked' : '') + '>' +
+          '新規の期間記録を「継続中」で開始する</label>' +
+        '<p class="hint" style="margin-top:8px">オフのときは、記録を追加したときに' +
+        '終了時刻を入力する状態で開きます。</p>' +
       '</div>' +
 
       reminderCardHTML() +
@@ -685,6 +722,10 @@
     UI.el('addCatBtn').addEventListener('click', function () { openCategoryEditor(null); });
     UI.el('settingsBody').querySelectorAll('[data-editcat]').forEach(function (b) {
       b.addEventListener('click', function () { openCategoryEditor(b.dataset.editcat); });
+    });
+    bindCategoryOrder();
+    UI.el('defaultOpenChk').addEventListener('change', function () {
+      Store.setDefaultOpenSpan(this.checked);
     });
     bindReminderCard();
     bindCardOrder();
@@ -974,8 +1015,10 @@
     // 必要ならそこから調整してもらう。「継続中」チェック時はどのみち使われない）
     var end = log ? log.end : start + UI.HOUR;
     // 時間帯を指定して開いたときは、具体的な開始〜終了を入力してもらう
-    // （「継続中」の既定チェックは、いま現在から始める場合だけにする）
-    var open = log ? (log.type === 'span' && !log.end) : (prefillStart === undefined && isToday);
+    // （「継続中」の既定チェックは、いま現在から始める場合だけ・かつ設定で
+    // 有効にしているときだけにする。既定はオフ＝終了時刻を入れる状態で開く）
+    var open = log ? (log.type === 'span' && !log.end)
+      : (Store.defaultOpenSpan() && prefillStart === undefined && isToday);
 
     var html =
       '<h2>' + (log ? '記録を編集' : '記録を追加') + '</h2>' +
@@ -988,7 +1031,7 @@
         '</div>' +
       '</div>' +
 
-      '<div class="field"><label>カテゴリ</label>' +
+      '<div class="field" id="catField"><label>カテゴリ</label>' +
         '<div class="chiprow" id="catChips" style="padding:0"></div>' +
       '</div>' +
 
@@ -1019,8 +1062,14 @@
     UI.openSheet(html, function (root) {
       var cur = { type: type, catId: catId, scale: log ? log.scale : null };
 
+      // いま選んでいる種類に合うカテゴリだけを出す。期間の画面に点用の
+      // カテゴリが混じっていると選びにくく、選んでも種類が食い違ってしまうため
+      function catsForType(t) {
+        return cats.filter(function (c) { return c.kind === t; });
+      }
+
       function paintChips() {
-        root.querySelector('#catChips').innerHTML = cats.map(function (c) {
+        root.querySelector('#catChips').innerHTML = catsForType(cur.type).map(function (c) {
           var on = c.id === cur.catId;
           return '<button class="chip' + (on ? ' is-on' : '') + '" data-cat="' + c.id + '"' +
             (on ? ' style="background:' + c.color + ';color:' + UI.textOn(c.color) + '"' : '') + '>' +
@@ -1029,7 +1078,6 @@
         root.querySelectorAll('#catChips [data-cat]').forEach(function (b) {
           b.addEventListener('click', function () {
             cur.catId = b.dataset.cat;
-            if (!log) setType(Store.category(cur.catId).kind);
             paintChips();
           });
         });
@@ -1043,10 +1091,18 @@
         root.querySelector('#endField').style.display = (t === 'span') ? '' : 'none';
         root.querySelector('#openField').style.display = (t === 'span') ? '' : 'none';
         root.querySelector('#scaleField').style.display = (t === 'scale') ? '' : 'none';
+        // 体調は普段カテゴリが1つだけなので、選ばせずそのまま記録できるようにする
+        root.querySelector('#catField').style.display = (t === 'scale') ? 'none' : '';
         root.querySelector('#lblStart').textContent = (t === 'span') ? '開始' : '時刻';
+
+        // 種類を切り替えて今のカテゴリが合わなくなったら、合うものへ移す
+        var matches = catsForType(t);
+        if (!matches.some(function (c) { return c.id === cur.catId; })) {
+          cur.catId = matches[0] ? matches[0].id : cur.catId;
+        }
+        paintChips();
       }
 
-      paintChips();
       setType(cur.type);
       paintScale(root, cur.scale);
 
