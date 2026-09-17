@@ -28,6 +28,15 @@
   --accent-text: #ffffff;
   --danger: #b04a42;
 
+  /* 記録方法（期間／点／体調）の見分け用。カテゴリ自身の色とは別の、
+     常に固定の色にすることで「どの記録方法か」を色でも読み取れるようにする */
+  --kind-span: #2f5d8f;
+  --kind-span-soft: #e8eff7;
+  --kind-point: #a06a1a;
+  --kind-point-soft: #f6ecdc;
+  --kind-scale: #1f7a68;
+  --kind-scale-soft: #e2f1ee;
+
   --shadow-sm: 0 1px 2px rgba(20, 26, 38, .06);
   --shadow: 0 8px 28px rgba(20, 26, 38, .14);
 
@@ -61,6 +70,12 @@
     --accent-soft: #16283c;
     --accent-text: #0b0f14;
     --danger: #e0736a;
+    --kind-span: #7fb0e6;
+    --kind-span-soft: #1b2c40;
+    --kind-point: #d9a24f;
+    --kind-point-soft: #332711;
+    --kind-scale: #4fb89e;
+    --kind-scale-soft: #122b25;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow: 0 10px 32px rgba(0, 0, 0, .6);
   }
@@ -80,6 +95,12 @@
   --accent-soft: #16283c;
   --accent-text: #0b0f14;
   --danger: #e0736a;
+  --kind-span: #7fb0e6;
+  --kind-span-soft: #1b2c40;
+  --kind-point: #d9a24f;
+  --kind-point-soft: #332711;
+  --kind-scale: #4fb89e;
+  --kind-scale-soft: #122b25;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow: 0 10px 32px rgba(0, 0, 0, .6);
 }
@@ -171,31 +192,16 @@ main {
   min-width: 0; flex: 1; scrollbar-width: none;
 }
 .dock-span-qbs::-webkit-scrollbar { display: none; }
-.qb {
-  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
-  padding: 7px 13px 7px 10px; border-radius: 999px;
-  background: var(--surface); border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-  font-size: 13px; font-weight: 600; color: var(--text);
-  white-space: nowrap; transition: transform .12s ease;
-}
+/* .dockbtn（点・体調と共通の見た目）に、複数並ぶための固定幅だけ足す */
+.qb { flex: 0 0 auto; width: 58px; transition: transform .12s ease; }
 .qb:active { transform: scale(.96); }
-.qb-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
-}
-.qb-meta { font-size: 11px; font-weight: 500; opacity: .8; }
-.qb-sign {
-  font-size: 13px; font-weight: 400; opacity: .55; margin-left: -2px;
-}
-/* 記録中はカテゴリ色で塗る */
-.qb.is-live {
-  color: #fff; border-color: transparent;
-}
-.qb.is-live .qb-dot {
+.qb-meta { font-size: 8.5px; font-weight: 600; opacity: .85; margin-top: -1px; }
+/* 記録中はカテゴリ色で塗る。点・体調にはない「経過時間」だけがここに残る */
+.qb.is-live .dot {
   background: currentColor !important; animation: pulse 2s ease-in-out infinite;
 }
 @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
-@media (prefers-reduced-motion: reduce) { .qb.is-live .qb-dot { animation: none } }
+@media (prefers-reduced-motion: reduce) { .qb.is-live .dot { animation: none } }
 
 /* ── 記録忘れの声かけ ──────────────────── */
 .nudge {
@@ -412,6 +418,16 @@ main {
 .cat-row .row-click {
   display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0; text-align: left;
 }
+
+/* 記録方法（期間／点／体調）の色分けバッジ。カテゴリ自身の色（swatch）とは
+   別に、記録方法そのものは常に同じ色で示す */
+.kind-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 6px;
+  font-size: 10px; font-weight: 700; vertical-align: 1px;
+}
+.kind-span  { background: var(--kind-span-soft);  color: var(--kind-span); }
+.kind-point { background: var(--kind-point-soft); color: var(--kind-point); }
+.kind-scale { background: var(--kind-scale-soft); color: var(--kind-scale); }
 
 .bar-track {
   height: 5px; background: var(--surface-2); border-radius: 999px;
