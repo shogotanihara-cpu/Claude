@@ -77,7 +77,7 @@ var Summary = (function () {
     };
   }
 
-  var HOUR_PX = 10;              // 圧縮した1時間ぶんの高さ(px)
+  var HOUR_PX = 12;              // 圧縮した1時間ぶんの高さ(px)
   var GRID_H = 24 * HOUR_PX;     // 24時間ぶんの高さ
   var SPAN_LANE_START = 15, SPAN_LANE_WIDTH = 70;   // 期間バーが使う横幅(%)。重複時はこの中で分割する
 
@@ -131,7 +131,10 @@ var Summary = (function () {
 
       d.logs.forEach(function (l) {
         if (l.type !== 'span') {
-          var y = (l.start - dayStart) / UI.HOUR * HOUR_PX;
+          // 0:00 や 24:00 ぎりぎりの記録でも、点の丸ごとが枠内に収まるよう
+          // 中心位置を半径ぶん内側に丸める（枠は overflow:hidden のため、
+          // はみ出すと文字どおり「隠れて見えない」記録になってしまう）
+          var y = Math.max(5, Math.min((l.start - dayStart) / UI.HOUR * HOUR_PX, GRID_H - 5));
           var color = (l.type === 'scale' && l.scale)
             ? Store.scaleInfo(l.scale).color
             : Store.category(l.catId).color;

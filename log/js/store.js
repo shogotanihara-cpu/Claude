@@ -119,6 +119,9 @@ var Store = (function () {
     if (!s.logs) s.logs = [];
     if (!s.reminders) s.reminders = [];
     s.cardOrder = normalizeCardOrder(s.cardOrder);
+    // 新規の期間記録を「継続中」で開始するかどうか。うっかり継続中のまま
+    // 忘れる記録が増えないよう、既定はオフにしている
+    if (typeof s.defaultOpenSpan !== 'boolean') s.defaultOpenSpan = false;
     return s;
   }
 
@@ -175,6 +178,22 @@ var Store = (function () {
     var s = load();
     s.categories = s.categories.filter(function (c) { return c.id !== id; });
     s.logs = s.logs.filter(function (l) { return l.catId !== id; });
+    persist();
+  }
+
+  /**
+   * カテゴリの並び順を入れ替える。並び順そのものが categories 配列の
+   * 順序なので、渡された id の並びに合わせて配列を組み直すだけでよい。
+   */
+  function setCategoryOrder(order) {
+    var s = load();
+    var byId = {};
+    s.categories.forEach(function (c) { byId[c.id] = c; });
+    var next = order.filter(function (id) { return byId[id]; })
+      .map(function (id) { return byId[id]; });
+    // 渡された並びに漏れがあっても記録を消したくないので、末尾に補う
+    s.categories.forEach(function (c) { if (next.indexOf(c) < 0) next.push(c); });
+    s.categories = next;
     persist();
   }
 
@@ -252,6 +271,15 @@ var Store = (function () {
     persist();
   }
 
+  /* ── 記録の既定 ───────────────────────── */
+
+  function defaultOpenSpan() { return !!load().defaultOpenSpan; }
+
+  function setDefaultOpenSpan(v) {
+    load().defaultOpenSpan = !!v;
+    persist();
+  }
+
   /* ── reminders ────────────────────────── */
   /* { id, time: "08:00", catId: カテゴリID または null } */
 
@@ -310,6 +338,7 @@ var Store = (function () {
     addCategory: addCategory,
     updateCategory: updateCategory,
     removeCategory: removeCategory,
+    setCategoryOrder: setCategoryOrder,
     categoryUsage: categoryUsage,
     logs: logs,
     getLog: getLog,
@@ -325,6 +354,8 @@ var Store = (function () {
     removeReminder: removeReminder,
     cardOrder: cardOrder,
     setCardOrder: setCardOrder,
+    defaultOpenSpan: defaultOpenSpan,
+    setDefaultOpenSpan: setDefaultOpenSpan,
     exportJSON: exportJSON,
     importJSON: importJSON,
     clearAll: clearAll
