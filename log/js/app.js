@@ -6,6 +6,8 @@
   'use strict';
 
   var KIND_LABEL = { span: '期間で記録', point: '点で記録', scale: '体調（1〜5）で記録' };
+  // 設定のカテゴリ一覧で、記録方法を色の印でも見分けられるようにする（css の .kind-* と対）
+  var KIND_SHORT = { span: '期間', point: '点', scale: '体調' };
 
   var app = {
     tab: 'timeline',
@@ -178,8 +180,9 @@
   }
 
   /**
-   * ワンタップで記録するボタン列（期間の開始/終了。経過時間つきで示す必要が
-   * あるもの）。ドックの「＋」の隣、点ボタンとの間に並べる。
+   * ワンタップで記録するボタン列（期間の開始/終了）。点・体調のドックボタンと
+   * 見た目をそろえた四角いボタンにし、記録中だけ色を塗って経過時間を小さく
+   * 添える（点・体調と並べたときに、どれが同じ操作なのか一目でわかるように）。
    */
   function renderQuickBar() {
     var box = UI.el('dockSpanQbs');
@@ -190,15 +193,15 @@
     box.innerHTML = cats.map(function (c) {
       var run = Store.runningOf(c.id);
       if (run) {
-        return '<button class="qb is-live" data-quick="' + c.id + '" style="background:' +
-          c.color + ';color:' + UI.textOn(c.color) + '">' +
-          '<span class="qb-dot"></span>' + UI.esc(c.name) +
+        return '<button class="dockbtn qb is-live" data-quick="' + c.id + '" style="background:' +
+          c.color + ';color:' + UI.textOn(c.color) + ';border-color:transparent">' +
+          '<span class="dot"></span>' + UI.esc(c.name) +
           '<span class="qb-meta">' + UI.fmtDuration(Date.now() - run.start) + '</span>' +
           '</button>';
       }
-      return '<button class="qb" data-quick="' + c.id + '">' +
-        '<span class="qb-dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
-        '<span class="qb-sign">開始</span></button>';
+      return '<button class="dockbtn qb" data-quick="' + c.id + '">' +
+        '<span class="dot" style="background:' + c.color + '"></span>' + UI.esc(c.name) +
+        '</button>';
     }).join('');
 
     box.querySelectorAll('[data-quick]').forEach(function (b) {
@@ -630,7 +633,8 @@
           '<div class="row-main"><div class="row-title">' + UI.esc(c.name) +
             (c.quick ? ' <span style="font-size:10px;color:var(--accent);font-weight:700">ワンタップ</span>' : '') +
           '</div>' +
-          '<div class="row-sub">' + KIND_LABEL[c.kind] + '・' + Store.categoryUsage(c.id) + '件</div></div>' +
+          '<div class="row-sub"><span class="kind-badge kind-' + c.kind + '">' +
+            KIND_SHORT[c.kind] + '</span>で記録・' + Store.categoryUsage(c.id) + '件</div></div>' +
           '<span style="color:var(--text-faint)">›</span>' +
         '</button>' +
         '<div class="reorder-btns">' +

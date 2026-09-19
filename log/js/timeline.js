@@ -5,10 +5,11 @@
 var Timeline = (function () {
   'use strict';
 
-  // 0〜24時が一画面に収まることを優先し、1時間ぶんの高さを大きく圧縮している。
-  // その代わり、多くのブロックは名前+長さだけの簡易表示（is-short）になる。
-  // 詳細（時刻範囲・メモ）は長い記録なら収まるし、それ以外はタップで見られる。
-  var HOUR_H = 16;          // 1時間あたりの高さ(px) — CSS の --hour-h と合わせる
+  // 0〜24時が一画面に収まることを最優先しつつ、その中では画面の高さいっぱいに
+  // 広げる。小さい端末でもスクロールなしで収まるよう、下限だけ固定で決めておき、
+  // 実際の高さは render() のたびに .timeline-wrap の余白から計算し直す。
+  var MIN_HOUR_H = 16;      // 1時間あたりの高さの下限(px)。これより縮めない
+  var HOUR_H = MIN_HOUR_H;  // 実際に使う高さ。render() で端末に合わせて上書きする
   var LABEL_STEP = 2;       // 時刻ラベルは詰まりすぎないよう2時間おきに間引く
   var MIN_BLOCK_H = 14;     // ブロックの最小高さ
   var SHORT_BLOCK_H = 34;   // これ未満は1行表示に切り替え
@@ -58,10 +59,27 @@ var Timeline = (function () {
    * @param {function} [onDragCreate] 空いている時間帯をドラッグしたときに (開始, 終了,
    *                                  指を離した位置のX, Y) を渡す。入力画面には遷移せず、
    *                                  呼び出し側で軽いカテゴリ選択だけ出すことを想定している
+   * @param {number} [hourCeiling]    内部の描き直し専用。実測がはみ出た場合に、
+   *                                  そのときの高さより必ず低く抑えるための上限
    */
-  function render(root, dayStart, onTap, onEmptyTap, onDragCreate) {
+  function render(root, dayStart, onTap, onEmptyTap, onDragCreate, hourCeiling) {
     var dayEnd = UI.addDays(dayStart, 1);
     var now = Date.now();
+
+    // 表示できる高さいっぱいまで枠を広げる。.timeline-wrap は
+    // justify-content:center で余りを上下に配分する器なので、その
+    // clientHeight がそのまま「24時間ぶんに使ってよい高さ」になる。
+    // ただし前回描画ぶんの高さがまだ残っていると、それに引きずられて
+    // 素の(=timelineが無いときの)高さを測れない。先につぶしてから測る。
+    var wrap = root.closest('.timeline-wrap');
+    if (wrap) {
+      root.style.height = '0px';
+      if (wrap.clientHeight) {
+        HOUR_H = Math.max(MIN_HOUR_H, Math.floor(wrap.clientHeight / 24));
+      }
+    }
+    if (hourCeiling) HOUR_H = Math.max(MIN_HOUR_H, Math.min(HOUR_H, hourCeiling));
+    root.style.setProperty('--hour-h', HOUR_H + 'px');
 
     root.innerHTML = '';
     root.style.height = (24 * HOUR_H) + 'px';
@@ -313,6 +331,16 @@ var Timeline = (function () {
       nl.className = 'now-line';
       nl.style.top = yFor(now, dayStart) + 'px';
       root.appendChild(nl);
+    }
+
+    // 計測は他要素の高さが確定した時点で行っているが、ドックなど周りの
+    // 要素の並び方によってはそれでもわずかに読み違え、ページ全体がはみ出す
+    // ことがある。そのときは上限を1段階下げて丸ごと描き直す。「スクロール
+    // 不要」を高さの実測値より優先するため、位置の一部だけ直すのではなく
+    // render() をやり直して全ブロックの位置を確実に揃え直す。
+    if (HOUR_H > MIN_HOUR_H && document.documentElement.scrollHeight > window.innerHeight + 0.5) {
+      var ceiling = HOUR_H - 1;
+      return render(root, dayStart, onTap, onEmptyTap, onDragCreate, ceiling);
     }
 
     return { count: logs.length, spans: spans, points: points.concat(scaleMarks) };
