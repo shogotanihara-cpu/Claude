@@ -125,7 +125,71 @@ var Model = (function () {
     }).sort(byDateDesc).reverse();
   }
 
+  /* ── イベントの提案 ───────────────────────
+     明細から「この日はイベントだったのでは」という期間を拾う。
+
+     手がかりは、対応表で印のついたカテゴリ（初期値は旅行）の明細。
+     その明細がある日を並べ、連続した日は同じイベントとして1つにまとめる。
+
+     ただし旅行の明細は、出かけた当日だけでなく、宿や飛行機を予約した日にも
+     1件だけ付く。予約しただけの日を拾わないよう、まとまりの中に
+     「手がかりの明細が3件以上」かつ「お店が2つ以上」あるものだけを提案する。
+     ───────────────────────────────────────── */
+
+  function dayAfter(s) {
+    var p = s.split('-');
+    var d = new Date(+p[0], +p[1] - 1, +p[2] + 1);
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  }
+
+  /** { key, from, to, hints（手がかりの明細）, count, total（期間内の全明細）, shops } の配列。新しい順 */
+  function suggestions() {
+    var byDay = {};
+    Store.recs().forEach(function (r) {
+      if (r.ev || r.off || !Store.isEventHint(r)) return;
+      (byDay[r.date] = byDay[r.date] || []).push(r);
+    });
+    var days = Object.keys(byDay).sort();
+    var runs = [], cur = null;
+    days.forEach(function (d) {
+      if (cur && dayAfter(cur.to) === d) cur.to = d;
+      else { cur = { from: d, to: d }; runs.push(cur); }
+    });
+
+    var events = Store.events();
+    var out = [];
+    runs.forEach(function (run) {
+      var key = run.from + '|' + run.to;
+      if (Store.skipped(key)) return;
+      // すでにあるイベントの期間と重なるなら、そちらの候補に出るので提案しない
+      var taken = events.some(function (e) {
+        return e.from && run.from <= (e.to || e.from) && run.to >= e.from;
+      });
+      if (taken) return;
+
+      var hints = [], shops = {};
+      Object.keys(byDay).forEach(function (d) {
+        if (d < run.from || d > run.to) return;
+        byDay[d].forEach(function (r) { hints.push(r); shops[title(r)] = true; });
+      });
+      if (hints.length < 3 || Object.keys(shops).length < 2) return;
+
+      var inside = Store.recs().filter(function (r) {
+        return !r.ev && !r.off && r.date >= run.from && r.date <= run.to;
+      });
+      out.push({
+        key: key, from: run.from, to: run.to, hints: hints,
+        count: inside.length, total: summaryOf(inside).total,
+        hintTotal: summaryOf(hints).total,
+        shops: Object.keys(shops)
+      });
+    });
+    return out.reverse();
+  }
+
   return {
+    suggestions: suggestions,
     monthOf: monthOf, needsReview: needsReview, queue: queue, months: months,
     summary: summary, summaryOf: summaryOf, subRows: subRows,
     recsOfMonth: recsOfMonth, title: title, classLabel: classLabel,

@@ -222,10 +222,18 @@ var Cats = (function () {
       sw.appendChild(el('span', null, '仮置きにして、毎回「仕分け」で確かめる'));
       body.appendChild(sw);
 
+      var sw2 = el('label', 'switch');
+      var cb2 = el('input');
+      cb2.type = 'checkbox';
+      cb2.checked = !!e.ev;
+      sw2.appendChild(cb2);
+      sw2.appendChild(el('span', null, 'この明細が固まっている日を、イベントとして提案する'));
+      body.appendChild(sw2);
+
       var row = el('div', 'sheet-actions');
       row.appendChild(btn('btn btn-ghost', '戻る', openMap));
       row.appendChild(btn('btn btn-primary', '保存', function () {
-        var moved = Store.setMap(key, value.cat, value.sub, cb.checked);
+        var moved = Store.setMap(key, value.cat, value.sub, cb.checked, cb2.checked);
         openMap();
         UI.undoToast(moved ? moved + ' 件の明細を振り直しました' : '対応を変えました');
       }));

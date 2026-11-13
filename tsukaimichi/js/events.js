@@ -8,6 +8,9 @@
 
    期間を決めると、その間の明細が候補として並ぶ。事前に買ったチケットなど
    期間の外の明細は、明細のシートからイベントを選んで入れる。
+
+   自分で作るほかに、明細の並びから「この日はイベントでは」と提案もする。
+   提案は押すまで何も変えない。違っていれば「ちがう」で消える。
    ───────────────────────────────────────── */
 
 var EventsView = (function () {
@@ -36,6 +39,7 @@ var EventsView = (function () {
         'ライブ遠征や旅行など、ひとまとまりの出費を束ねて合計を見られます。月の集計とは別の軸です。'));
       empty.appendChild(btn('btn btn-primary', '＋ イベントを作る', function () { form(null); }));
       host.appendChild(empty);
+      suggestSection(host);
       return;
     }
 
@@ -52,7 +56,46 @@ var EventsView = (function () {
       rows.appendChild(row);
     });
     host.appendChild(rows);
-    host.appendChild(btn('btn btn-wide', '＋ イベントを作る', function () { form(null); }));
+    host.appendChild(btn('btn btn-wide btn-gap', '＋ イベントを作る', function () { form(null); }));
+    suggestSection(host);
+  }
+
+  /* ── 提案 ─────────────────────────────── */
+
+  var SHOW = 5;   // 一度に出す提案の数。取り込み直後は十数件出るので、新しいものから少しずつ
+
+  function suggestSection(host) {
+    var all = Model.suggestions();
+    if (!all.length) return;
+    var sec = group(host, 'イベントかもしれない日', all.length + ' 件');
+    sec.appendChild(el('p', 'sheet-note',
+      '旅行の明細が固まっている日です。連続した日は1つにまとめています。期間は作るときに直せます。'));
+    all.slice(0, SHOW).forEach(function (s) { sec.appendChild(suggestCard(s)); });
+    if (all.length > SHOW) {
+      sec.appendChild(el('p', 'sheet-note center', 'ほか ' + (all.length - SHOW) + ' 件。上から答えると続きが出ます。'));
+    }
+  }
+
+  function suggestCard(s) {
+    var c = el('div', 'qcard qcard-suggest');
+    var top = el('div', 'qcard-top');
+    var main = el('div', 'row-main');
+    main.appendChild(el('div', 'row-title', UI.fmtRange(s.from, s.to)));
+    main.appendChild(el('div', 'row-sub', '旅行の明細 ' + s.hints.length + ' 件 ・ ' + s.shops.slice(0, 3).join('、') +
+      (s.shops.length > 3 ? ' ほか' : '')));
+    top.appendChild(main);
+    top.appendChild(el('span', 'amt amt-big', UI.yen(s.hintTotal)));
+    c.appendChild(top);
+
+    var row = el('div', 'qbtns');
+    row.appendChild(btn('qbtn', 'ちがう', function () {
+      Store.skipSuggestion(s.key);
+      UI.undoToast('この期間はもう提案しません');
+    }));
+    var yes = btn('qbtn qbtn-go', 'イベントにする', function () { form(null, s); });
+    row.appendChild(yes);
+    c.appendChild(row);
+    return c;
   }
 
   /* ── 1件の中身 ────────────────────────── */
@@ -137,17 +180,20 @@ var EventsView = (function () {
 
   /* ── 作成・編集 ───────────────────────── */
 
-  function form(ev) {
+  /** hint を渡すと、提案の期間を入れた状態で開く。作ると手がかりの明細が最初から入る */
+  function form(ev, hint) {
     UI.sheet(ev ? 'イベントを編集' : 'イベントを作る', function (body, close) {
       var name = UI.field(body, '名前', UI.input('text', ev ? ev.name : '', '例: 幕張ライブ遠征'));
       var pair = el('div', 'pair');
       var a = el('div'), b = el('div');
-      var from = UI.field(a, 'はじまり', UI.input('date', ev ? ev.from : ''));
-      var to = UI.field(b, 'おわり', UI.input('date', ev ? ev.to : ''));
+      var from = UI.field(a, 'はじまり', UI.input('date', ev ? ev.from : (hint ? hint.from : '')));
+      var to = UI.field(b, 'おわり', UI.input('date', ev ? ev.to : (hint && hint.to !== hint.from ? hint.to : '')));
       pair.appendChild(a);
       pair.appendChild(b);
       body.appendChild(pair);
-      body.appendChild(el('p', 'sheet-note', '日帰りなら「はじまり」だけで構いません。'));
+      body.appendChild(el('p', 'sheet-note', hint
+        ? '旅行の明細 ' + hint.hints.length + ' 件を入れた状態で作ります。同じ期間のほかの明細は、作ったあと候補に並びます。'
+        : '日帰りなら「はじまり」だけで構いません。'));
 
       var actions = el('div', 'sheet-actions');
       if (ev) {
@@ -165,8 +211,15 @@ var EventsView = (function () {
         if (f.from && f.to && f.to < f.from) { var t = f.from; f.from = f.to; f.to = t; }
         if (!f.from && f.to) { f.from = f.to; f.to = ''; }
         close();
-        if (ev) Store.updateEvent(ev.id, f);
-        else App.openEvent(Store.addEvent(f));
+        if (ev) { Store.updateEvent(ev.id, f); return; }
+        if (!hint) { App.openEvent(Store.addEvent(f)); return; }
+        // 期間を狭めて作った場合は、その中に収まる明細だけを入れる
+        var end = f.to || f.from;
+        var ids = hint.hints.filter(function (r) {
+          return !f.from || (r.date >= f.from && r.date <= end);
+        }).map(function (r) { return r.id; });
+        App.openEvent(Store.addEventWith(f, ids));
+        UI.undoToast('イベントを作り、' + ids.length + ' 件を入れました');
       }));
       body.appendChild(actions);
       if (!ev) setTimeout(function () { name.focus(); }, 250);
