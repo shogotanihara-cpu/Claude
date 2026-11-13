@@ -7,6 +7,7 @@
 |---|---|---|---|
 | **ログ** | [`log/`](log/README.md) | https://app.oshihitsuji.jp/log/ | 睡眠・服薬・体調をタイムラインで記録し、受診用の1枚にまとめる |
 | **ワケワケ** | [`wake/`](wake/README.md) | https://app.oshihitsuji.jp/wake/ | 大きなタスクを分解して、次に手をつけるものを1枚目に出す |
+| **ツカイミチ** | [`tsukaimichi/`](tsukaimichi/README.md) | https://app.oshihitsuji.jp/tsukaimichi/ | ザイムの支出を取り込み、推し活・生活・娯楽の軸で月ごと・イベントごとに見直す |
 
 コードも保存データ（localStorage のキー）も、アプリごとに完全に分かれています。
 それぞれのくわしい説明は、各フォルダの README にあります。
@@ -19,6 +20,7 @@
 ```
 log/            記録アプリ「ログ」    → /log/
 wake/           タスク管理「ワケワケ」→ /wake/
+tsukaimichi/    消費の確認「ツカイミチ」→ /tsukaimichi/
 robots.txt      サイト全体のクローラー向け設定
 CNAME           カスタムドメインの指定
 handoffs/       作業の引き継ぎメモ（公開されません）

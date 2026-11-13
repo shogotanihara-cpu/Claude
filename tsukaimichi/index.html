@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ツカイミチ - 使い道を、自分の軸で</title>
+<meta name="description" content="ザイムに記録した支出を取り込んで、推し活・生活・娯楽という自分の軸で見直すためのアプリ。月ごとの合計と、遠征などイベント単位の合計が見られます。データはお使いの端末の中だけに保存されます。">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="ツカイミチ - 使い道を、自分の軸で">
+<meta property="og:description" content="ザイムに記録した支出を、推し活・生活・娯楽という自分の軸で見直すためのアプリ。">
+<meta property="og:url" content="https://app.oshihitsuji.jp/tsukaimichi/">
+<meta property="og:image" content="https://app.oshihitsuji.jp/tsukaimichi/icons/icon-512.png">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ツカイミチ">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <header class="appbar">
+    <h1 class="brand">ツカイミチ</h1>
+    <p class="tagline">使い道を、自分の軸で</p>
+  </header>
+</div>
+
+<main id="viewHost" class="view"></main>
+
+<button class="fab" id="fab" type="button" aria-label="支出を入力">＋</button>
+
+<nav class="tabbar" id="tabbar" aria-label="画面の切り替え"></nav>
+
+<div class="sheet-host" id="sheetHost"></div>
+<div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+<script src="js/store.js"></script>
+<script src="js/model.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/cats.js"></script>
+<script src="js/entry.js"></script>
+<script src="js/month.js"></script>
+<script src="js/sort.js"></script>
+<script src="js/list.js"></script>
+<script src="js/events.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

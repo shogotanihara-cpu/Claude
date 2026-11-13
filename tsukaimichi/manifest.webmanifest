@@ -1,0 +1,18 @@
+{
+  "name": "ツカイミチ - 使い道を、自分の軸で",
+  "short_name": "ツカイミチ",
+  "description": "ザイムに記録した支出を取り込んで、推し活・生活・娯楽という自分の軸で見直すためのアプリ。月ごとの合計と、遠征などイベント単位の合計が見られます。データはお使いの端末の中だけに保存されます。",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "id": "/tsukaimichi/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f5f7",
+  "theme_color": "#6f5bb5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
