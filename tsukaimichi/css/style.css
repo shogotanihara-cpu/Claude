@@ -561,6 +561,9 @@ button { cursor: pointer; }
 .qbtn-go { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .qcard-suggest { border-style: dashed; }
 .btn-gap { margin-bottom: 18px; }
+/* 3つ並べるときは文字が長いので、少し詰めて1行に収める */
+.qbtns-3 .qbtn { font-size: 12px; padding: 8px 2px; white-space: nowrap; }
+.qbtn:disabled { opacity: .4; }
 .qbtn-auto { border: 2px dashed var(--c, var(--accent)); font-weight: 700; }
 
 /* ── 分類を選ぶチップ ─────────────────── */
