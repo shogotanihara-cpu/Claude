@@ -557,6 +557,10 @@ button { cursor: pointer; }
   background: var(--panel2);
   font-size: 13.5px;
 }
+/* 提案の「はい」。押すと先へ進むほうを色で示す */
+.qbtn-go { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.qcard-suggest { border-style: dashed; }
+.btn-gap { margin-bottom: 18px; }
 .qbtn-auto { border: 2px dashed var(--c, var(--accent)); font-weight: 700; }
 
 /* ── 分類を選ぶチップ ─────────────────── */

@@ -52,11 +52,12 @@ var Store = (function () {
       version: VERSION,
       majors: MAJORS.map(function (m) { return { id: m.id, name: m.name, color: m.color }; }),
       subs: [],            // { id, major, name, order }
-      map: {},             // "カテゴリ/内訳" → { cat, sub, ask }
+      map: {},             // "カテゴリ/内訳" → { cat, sub, ask, ev }
       learn: {},           // "お店|内訳" → { "s:小分類id" か "c:大分類id" : 回数 }
       recs: [],
       events: [],          // { id, name, from, to }
       gone: {},            // 消したザイム明細の指紋 → 件数（再取り込みで復活させない）
+      skip: {},            // 「ちがう」と答えたイベントの提案（"はじまり|おわり"）
       settings: { view: 'month' }
     };
   }
@@ -134,7 +135,11 @@ var Store = (function () {
     if (s.map && typeof s.map === 'object') {
       Object.keys(s.map).forEach(function (k) {
         var e = s.map[k] || {};
-        out.map[k] = { cat: e.cat || null, sub: e.sub || null, ask: !!e.ask };
+        // ev は後から足した項目。持っていない古いデータでは、旅行だけを手がかりにする
+        out.map[k] = {
+          cat: e.cat || null, sub: e.sub || null, ask: !!e.ask,
+          ev: (typeof e.ev === 'boolean') ? e.ev : /\/旅行$/.test(k)
+        };
       });
     }
     if (s.learn && typeof s.learn === 'object') {
@@ -153,6 +158,9 @@ var Store = (function () {
     }
     if (s.gone && typeof s.gone === 'object') {
       Object.keys(s.gone).forEach(function (k) { if (s.gone[k] > 0) out.gone[k] = Math.floor(s.gone[k]); });
+    }
+    if (s.skip && typeof s.skip === 'object') {
+      Object.keys(s.skip).forEach(function (k) { if (s.skip[k]) out.skip[k] = 1; });
     }
     if (s.settings && typeof s.settings === 'object') {
       if (typeof s.settings.view === 'string') out.settings.view = s.settings.view;
@@ -513,7 +521,8 @@ var Store = (function () {
       sub = found ? found.id : makeSub(major, name).id;
     }
     // 旅行は推し活のことが多いが、いつもではない。仮置きして毎回確かめてもらう
-    state.map[k] = { cat: major, sub: sub, ask: zsub === '旅行' };
+    // 同じ理由で、旅行の明細が固まっている日は「イベントかもしれない」と提案する手がかりにする
+    state.map[k] = { cat: major, sub: sub, ask: zsub === '旅行', ev: zsub === '旅行' };
   }
 
   function applyImport(fresh) {
@@ -587,9 +596,9 @@ var Store = (function () {
   }
 
   /** 対応表の1行を変える。手で決めていない明細は、新しい対応で振り直す */
-  function setMap(key, cat, sub, ask) {
+  function setMap(key, cat, sub, ask, ev) {
     pushUndo();
-    state.map[key] = { cat: cat || null, sub: sub || null, ask: !!ask };
+    state.map[key] = { cat: cat || null, sub: sub || null, ask: !!ask, ev: !!ev };
     reindex();
     var moved = reclassify();
     commit();
@@ -613,6 +622,31 @@ var Store = (function () {
     e.to = f.to || '';
     commit();
   }
+
+  /** イベントを作り、同時に明細を入れる（提案から作るとき）。取り消すと両方戻る */
+  function addEventWith(f, ids) {
+    pushUndo();
+    var e = { id: uid('e'), name: String(f.name || '').trim(), from: f.from || '', to: f.to || '' };
+    state.events.push(e);
+    ids.forEach(function (id) { if (index[id]) index[id].ev = e.id; });
+    commit();
+    return e.id;
+  }
+
+  /** この明細が、イベントの提案の手がかりになるか（対応表で印のついたカテゴリか） */
+  function isEventHint(r) {
+    var m = r.h ? state.map[mapKey(r.zcat, r.zsub)] : null;
+    return !!(m && m.ev);
+  }
+
+  /** 提案に「ちがう」と答えた。同じ期間はもう提案しない */
+  function skipSuggestion(key) {
+    pushUndo();
+    state.skip[key] = 1;
+    commit();
+  }
+
+  function skipped(key) { return !!state.skip[key]; }
 
   /** イベントを消す。入っていた明細は消さず、所属だけ外れる（reindex） */
   function removeEvent(id) {
@@ -665,7 +699,8 @@ var Store = (function () {
     planImport: planImport, applyImport: applyImport,
     addSub: addSub, renameMajor: renameMajor, updateSub: updateSub,
     moveSub: moveSub, removeSub: removeSub, setMap: setMap,
-    addEvent: addEvent, updateEvent: updateEvent, removeEvent: removeEvent,
+    addEvent: addEvent, addEventWith: addEventWith, updateEvent: updateEvent, removeEvent: removeEvent,
+    isEventHint: isEventHint, skipSuggestion: skipSuggestion, skipped: skipped,
     settings: settings, setSetting: setSetting,
     exportData: exportData, importData: importData, clearAll: clearAll,
     undo: undo, size: function () { return lastSize; }
