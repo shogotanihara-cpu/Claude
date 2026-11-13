@@ -9,8 +9,8 @@
    期間を決めると、その間の明細が候補として並ぶ。事前に買ったチケットなど
    期間の外の明細は、明細のシートからイベントを選んで入れる。
 
-   自分で作るほかに、明細の並びから「この日はイベントでは」と提案もする。
-   提案は押すまで何も変えない。違っていれば「ちがう」で消える。
+   自分で作るほかに、明細の並びから「これはイベントでは」と提案もする。
+   提案は押すまで何も変えない。違っていれば「イベントではない」で消える。
    ───────────────────────────────────────── */
 
 var EventsView = (function () {
@@ -40,7 +40,6 @@ var EventsView = (function () {
       empty.appendChild(btn('btn btn-primary', '＋ イベントを作る', function () { form(null); }));
       host.appendChild(empty);
       suggestSection(host);
-      bookingSection(host);
       return;
     }
 
@@ -59,116 +58,111 @@ var EventsView = (function () {
     host.appendChild(rows);
     host.appendChild(btn('btn btn-wide btn-gap', '＋ イベントを作る', function () { form(null); }));
     suggestSection(host);
-    bookingSection(host);
   }
 
-  /* ── 提案 ─────────────────────────────── */
+  /* ── 提案 ─────────────────────────────────
+     「現地にいたらしい日のまとまり」と「予約・チケットの支払い」を、
+     1つの一覧に新しい順で並べる。手がかりの種類は違っても、聞きたいことは
+     どちらも同じ「これはイベントか、どのイベントか」なので、答え方も3つにそろえる。
+       ・イベントではない      … もう出さない
+       ・新しいイベント        … これを入れた状態で作る
+       ・既存に入れる          … どのイベントかを選ぶ
+     ───────────────────────────────────────── */
 
-  var SHOW = 5;   // 一度に出す提案の数。取り込み直後は十数件出るので、新しいものから少しずつ
+  var SHOW = 8;   // 一度に出す数。取り込み直後は数十件になるので、新しいものから少しずつ
+
+  /** 2種類の提案を、同じ形 { date, title, sub, amt, skipKey, hint, recs } にそろえて混ぜる */
+  function proposals() {
+    var out = [];
+    Model.suggestions().forEach(function (s) {
+      out.push({
+        date: s.to,
+        title: UI.fmtRange(s.from, s.to),
+        // なぜ提案したのかを先に書く。理由が分からない提案は、合っているか判断できない
+        sub: s.why.join('・') + '（' + s.hints.length + ' 件） ・ ' +
+          s.shops.slice(0, 3).join('、') + (s.shops.length > 3 ? ' ほか' : ''),
+        amt: s.hintTotal, skipKey: s.key, hint: s, recs: s.hints
+      });
+    });
+    Model.bookings().forEach(function (r) {
+      var memo = (r.memo || r.item || '').split('\n')[0];
+      out.push({
+        date: r.date,
+        title: Model.title(r),
+        sub: '予約・チケット ・ ' + UI.fmtDate(r.date) + ' に支払い' + (memo ? ' ・ ' + memo : ''),
+        amt: r.amt, skipKey: 'b:' + r.id,
+        hint: { from: '', to: '', hints: [r], booking: true }, recs: [r]
+      });
+    });
+    return out.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  }
 
   function suggestSection(host) {
-    var all = Model.suggestions();
+    var all = proposals();
     if (!all.length) return;
-    var sec = group(host, 'イベントかもしれない日', all.length + ' 件');
+    var sec = group(host, 'イベントかもしれない明細', all.length + ' 件');
     sec.appendChild(el('p', 'sheet-note',
-      '新幹線・関西以外の地名・旅行の明細がある日です。連続した日は1つにまとめています。期間は作るときに直せます。'));
-    all.slice(0, SHOW).forEach(function (s) { sec.appendChild(suggestCard(s)); });
+      '新幹線・関西以外の地名・旅行の明細がある日（連続した日は1つにまとめています）と、' +
+      '旅行サイト・チケットサイトの支払いです。'));
+    all.slice(0, SHOW).forEach(function (p) { sec.appendChild(proposalCard(p)); });
     if (all.length > SHOW) {
       sec.appendChild(el('p', 'sheet-note center', 'ほか ' + (all.length - SHOW) + ' 件。上から答えると続きが出ます。'));
     }
   }
 
-  /* 予約やチケットは、払った日とイベントの日がずれる。日付から期間を決められないので、
-     期間の提案とは別に並べて、どのイベントのものかを選んでもらう */
-  function bookingSection(host) {
-    var all = Model.bookings();
-    if (!all.length) return;
-    var sec = group(host, '予約・チケットの支払い', all.length + ' 件');
-    sec.appendChild(el('p', 'sheet-note',
-      '旅行サイトやチケットサイトの支払いです。イベントを開くと、その前の支払いをまとめて入れられます。'));
-    all.slice(0, SHOW).forEach(function (r) { sec.appendChild(bookingCard(r)); });
-    if (all.length > SHOW) {
-      sec.appendChild(el('p', 'sheet-note center', 'ほか ' + (all.length - SHOW) + ' 件。'));
-    }
-  }
-
-  function bookingCard(r) {
+  function proposalCard(p) {
     var c = el('div', 'qcard qcard-suggest');
     var top = el('div', 'qcard-top');
     var main = el('div', 'row-main');
-    main.appendChild(el('div', 'row-title', Model.title(r)));
-    var memo = (r.memo || r.item || '').split('\n')[0];
-    main.appendChild(el('div', 'row-sub', UI.fmtDate(r.date) + ' に支払い' + (memo ? ' ・ ' + memo : '')));
-    main.addEventListener('click', function () { Entry.open(r.id); });
+    main.appendChild(el('div', 'row-title', p.title));
+    main.appendChild(el('div', 'row-sub', p.sub));
+    // 1件の明細ならタップで中身を開ける。期間のまとまりは開く先がないので何もしない
+    if (p.recs.length === 1) main.addEventListener('click', function () { Entry.open(p.recs[0].id); });
     top.appendChild(main);
-    top.appendChild(el('span', 'amt amt-big' + (r.amt < 0 ? ' amt-minus' : ''), UI.yen(r.amt)));
+    top.appendChild(el('span', 'amt amt-big' + (p.amt < 0 ? ' amt-minus' : ''), UI.yen(p.amt)));
     c.appendChild(top);
 
-    var row = el('div', 'qbtns');
-    row.appendChild(btn('qbtn', 'ちがう', function () {
-      Store.skipSuggestion('b:' + r.id);
-      UI.undoToast('この支払いはもう出しません');
+    var row = el('div', 'qbtns qbtns-3');
+    row.appendChild(btn('qbtn', 'イベントではない', function () {
+      Store.skipSuggestion(p.skipKey);
+      UI.undoToast('もう出しません');
     }));
-    row.appendChild(btn('qbtn qbtn-go', 'イベントに入れる', function () { chooseEvent(r); }));
+    row.appendChild(btn('qbtn qbtn-go', '新しいイベント', function () { form(null, p.hint); }));
+    var into = btn('qbtn qbtn-go', '既存に入れる', function () { chooseEvent(p); });
+    // 入れ先がまだ1つもないときは押せなくする。押してから「ありません」と出すより早い
+    into.disabled = !Store.events().length;
+    row.appendChild(into);
     c.appendChild(row);
     return c;
   }
 
-  /* 支払いをどのイベントに入れるか選ぶ。支払いより後に始まるイベントを、近い順に先頭へ */
-  function chooseEvent(r) {
+  /* どのイベントに入れるか選ぶ。この明細より後に終わるイベントを、近い順に先頭へ。
+     予約は先のイベントのために払うものなので、たいてい先頭のどれかが当たる */
+  function chooseEvent(p) {
     UI.sheet('どのイベントに入れますか', function (body, close) {
-      body.appendChild(el('p', 'sheet-note', Model.title(r) + ' ・ ' + UI.fmtDate(r.date) + ' に支払い ・ ' + UI.yen(r.amt)));
+      body.appendChild(el('p', 'sheet-note', p.title + ' ・ ' + p.recs.length + ' 件 ・ ' + UI.yen(p.amt)));
       var after = [], before = [];
       Store.events().forEach(function (e) {
-        ((e.to || e.from || '') >= r.date ? after : before).push(e);
+        ((e.to || e.from || '') >= p.date ? after : before).push(e);
       });
       after.sort(function (a, b) { return (a.from || '') < (b.from || '') ? -1 : 1; });
       before.sort(function (a, b) { return (a.from || '') < (b.from || '') ? 1 : -1; });
-      var events = after.concat(before);
-      if (events.length) {
-        var rows = el('div', 'rows');
-        events.forEach(function (e) {
-          var row = el('div', 'row row-tap');
-          var main = el('div', 'row-main');
-          main.appendChild(el('div', 'row-title', e.name));
-          main.appendChild(el('div', 'row-sub', UI.fmtRange(e.from, e.to)));
-          row.appendChild(main);
-          row.addEventListener('click', function () {
-            close();
-            Store.setEvent([r.id], e.id);
-            UI.undoToast(e.name + ' に入れました');
-          });
-          rows.appendChild(row);
+      var rows = el('div', 'rows');
+      after.concat(before).forEach(function (e) {
+        var row = el('div', 'row row-tap');
+        var main = el('div', 'row-main');
+        main.appendChild(el('div', 'row-title', e.name));
+        main.appendChild(el('div', 'row-sub', UI.fmtRange(e.from, e.to)));
+        row.appendChild(main);
+        row.addEventListener('click', function () {
+          close();
+          Store.setEvent(p.recs.map(function (r) { return r.id; }), e.id);
+          UI.undoToast(e.name + ' に ' + p.recs.length + ' 件を入れました');
         });
-        body.appendChild(rows);
-      }
-      body.appendChild(btn('btn btn-wide', '＋ 新しいイベントを作る', function () {
-        form(null, { from: '', to: '', hints: [r], booking: true });
-      }));
+        rows.appendChild(row);
+      });
+      body.appendChild(rows);
     });
-  }
-
-  function suggestCard(s) {
-    var c = el('div', 'qcard qcard-suggest');
-    var top = el('div', 'qcard-top');
-    var main = el('div', 'row-main');
-    main.appendChild(el('div', 'row-title', UI.fmtRange(s.from, s.to)));
-    // なぜ提案したのかを先に書く。理由が分からない提案は、合っているか判断できない
-    main.appendChild(el('div', 'row-sub', s.why.join('・') + '（' + s.hints.length + ' 件） ・ ' +
-      s.shops.slice(0, 3).join('、') + (s.shops.length > 3 ? ' ほか' : '')));
-    top.appendChild(main);
-    top.appendChild(el('span', 'amt amt-big', UI.yen(s.hintTotal)));
-    c.appendChild(top);
-
-    var row = el('div', 'qbtns');
-    row.appendChild(btn('qbtn', 'ちがう', function () {
-      Store.skipSuggestion(s.key);
-      UI.undoToast('この期間はもう提案しません');
-    }));
-    var yes = btn('qbtn qbtn-go', 'イベントにする', function () { form(null, s); });
-    row.appendChild(yes);
-    c.appendChild(row);
-    return c;
   }
 
   /* ── 1件の中身 ────────────────────────── */
