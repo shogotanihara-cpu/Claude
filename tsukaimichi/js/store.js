@@ -27,7 +27,7 @@
 var Store = (function () {
   'use strict';
 
-  var KEY = 'spend.v1';    // 他のアプリ（actionlog.v1 / wake.v1 など）とは別の名前空間
+  var KEY = 'tsukaimichi.v1';    // 他のアプリ（actionlog.v1 / wake.v1 など）とは別の名前空間
   var VERSION = 1;
 
   /* 大分類は3つで固定。増減はできないが、名前は変えられる */

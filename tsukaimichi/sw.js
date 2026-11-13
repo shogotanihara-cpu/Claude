@@ -1,10 +1,10 @@
 /* Service Worker — ツカイミチ本体をキャッシュして、オフラインでも開けるようにする。
    明細は localStorage に入っているので、ここでは扱わない。
 
-   このファイルは /spend/ の中に置く。スコープが /spend/ に閉じるので、
+   このファイルは /tsukaimichi/ の中に置く。スコープが /tsukaimichi/ に閉じるので、
    隣のアプリのリクエストには口を出さない。 */
 
-var CACHE = 'spend-v1';
+var CACHE = 'tsukaimichi-v1';
 
 var ASSETS = [
   './',
