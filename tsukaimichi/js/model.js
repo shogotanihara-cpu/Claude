@@ -126,35 +126,89 @@ var Model = (function () {
   }
 
   /* ── イベントの提案 ───────────────────────
-     明細から「この日はイベントだったのでは」という期間を拾う。
+     明細から「これはイベントだったのでは」というものを拾う。手がかりは4種類。
 
-     手がかりは、対応表で印のついたカテゴリ（初期値は旅行）の明細。
-     その明細がある日を並べ、連続した日は同じイベントとして1つにまとめる。
+       strong … 新幹線、関西以外の地名。その日は現地にいたと見てよい
+       weak   … 対応表で印のついたカテゴリ（初期値は旅行）。旅先の食事や交通
+       book   … 旅行サイト・航空券・チケットサイト。払った日とイベントの日がずれる
 
-     ただし旅行の明細は、出かけた当日だけでなく、宿や飛行機を予約した日にも
-     1件だけ付く。予約しただけの日を拾わないよう、まとまりの中に
-     「手がかりの明細が3件以上」かつ「お店が2つ以上」あるものだけを提案する。
+     strong と weak は「現地にいた日」を表す。その日を並べ、連続した日は
+     同じイベントとして1つにまとめて、期間として提案する。
+     strong が1件でもあれば提案する。weak だけのまとまりは、たまたまの1件を
+     拾わないよう「3件以上」かつ「お店が2つ以上」のときだけ提案する。
+
+     book は日付が当てにならないので、期間を作る材料にしない。
+     「予約・チケットの支払い」として別に並べ、どのイベントに入れるかは人が選ぶ。
      ───────────────────────────────────────── */
 
-  function dayAfter(s) {
+  /* 比べる前に表記をそろえる。全角半角・大文字小文字・ひらがなカタカナのほか、
+     QUICPay の明細は小さい「ョ」が大きい「ヨ」で入っている（トウキヨウ）ので、それも寄せる */
+  var SMALL = { 'ァ': 'ア', 'ィ': 'イ', 'ゥ': 'ウ', 'ェ': 'エ', 'ォ': 'オ', 'ッ': 'ツ', 'ャ': 'ヤ', 'ュ': 'ユ', 'ョ': 'ヨ', 'ヮ': 'ワ' };
+
+  function fold(s) {
+    s = String(s || '');
+    if (s.normalize) s = s.normalize('NFKC');
+    return s.toUpperCase().replace(/[ぁ-ゖ]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) + 0x60);
+    }).replace(/[ァィゥェォッャュョヮ]/g, function (c) { return SMALL[c]; });
+  }
+
+  var folded = null, foldedFrom = null;
+
+  function wordLists() {
+    var w = Store.words();
+    if (foldedFrom !== w) {
+      foldedFrom = w;
+      folded = {};
+      ['ride', 'book', 'place'].forEach(function (k) {
+        folded[k] = w[k].map(fold).filter(function (x) { return x; });
+      });
+    }
+    return folded;
+  }
+
+  function hasAny(text, list) {
+    for (var i = 0; i < list.length; i++) if (text.indexOf(list[i]) >= 0) return true;
+    return false;
+  }
+
+  /** 明細の手がかりの種類。{ kind: 'book'|'strong'|'weak', why } か null */
+  function hint(r) {
+    var w = wordLists();
+    var text = fold(r.shop + ' ' + r.item + ' ' + r.memo);
+    // 予約を先に見る。「楽天トラベル」はザイムでは旅行に入っているが、払った日は旅行の日ではない
+    if (hasAny(text, w.book)) return { kind: 'book', why: '予約・チケット' };
+    if (hasAny(text, w.ride)) return { kind: 'strong', why: '新幹線' };
+    // 末尾の「(TOKYO)」「(JAPAN)」はお店の本社の場所なので、地名を探す前に落とす
+    if (hasAny(text.replace(/\([A-Z0-9 .,\-]*\)/g, ''), w.place)) return { kind: 'strong', why: '関西以外の地名' };
+    if (Store.isEventHint(r)) return { kind: 'weak', why: '旅行の明細' };
+    return null;
+  }
+
+  function dayShift(s, n) {
     var p = s.split('-');
-    var d = new Date(+p[0], +p[1] - 1, +p[2] + 1);
+    var d = new Date(+p[0], +p[1] - 1, +p[2] + n);
     var m = d.getMonth() + 1, day = d.getDate();
     return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
   }
 
-  /** { key, from, to, hints（手がかりの明細）, count, total（期間内の全明細）, shops } の配列。新しい順 */
+  /**
+   * 期間の提案。新しい順。
+   * { key, from, to, hints（現地の手がかりの明細）, why（理由の一覧）, hintTotal, shops }
+   */
   function suggestions() {
     var byDay = {};
     Store.recs().forEach(function (r) {
-      if (r.ev || r.off || !Store.isEventHint(r)) return;
-      (byDay[r.date] = byDay[r.date] || []).push(r);
+      if (r.ev || r.off) return;
+      var h = hint(r);
+      if (!h || h.kind === 'book') return;
+      (byDay[r.date] = byDay[r.date] || []).push({ rec: r, hint: h });
     });
     var days = Object.keys(byDay).sort();
     var runs = [], cur = null;
     days.forEach(function (d) {
-      if (cur && dayAfter(cur.to) === d) cur.to = d;
-      else { cur = { from: d, to: d }; runs.push(cur); }
+      if (cur && dayShift(cur.to, 1) === d) { cur.to = d; cur.days.push(d); }
+      else { cur = { from: d, to: d, days: [d] }; runs.push(cur); }
     });
 
     var events = Store.events();
@@ -168,28 +222,52 @@ var Model = (function () {
       });
       if (taken) return;
 
-      var hints = [], shops = {};
-      Object.keys(byDay).forEach(function (d) {
-        if (d < run.from || d > run.to) return;
-        byDay[d].forEach(function (r) { hints.push(r); shops[title(r)] = true; });
+      var hints = [], shops = {}, why = {}, strong = false;
+      run.days.forEach(function (d) {
+        byDay[d].forEach(function (x) {
+          hints.push(x.rec);
+          shops[title(x.rec)] = true;
+          why[x.hint.why] = true;
+          if (x.hint.kind === 'strong') strong = true;
+        });
       });
-      if (hints.length < 3 || Object.keys(shops).length < 2) return;
+      if (!strong && (hints.length < 3 || Object.keys(shops).length < 2)) return;
 
-      var inside = Store.recs().filter(function (r) {
-        return !r.ev && !r.off && r.date >= run.from && r.date <= run.to;
-      });
       out.push({
         key: key, from: run.from, to: run.to, hints: hints,
-        count: inside.length, total: summaryOf(inside).total,
-        hintTotal: summaryOf(hints).total,
+        why: Object.keys(why), hintTotal: summaryOf(hints).total,
         shops: Object.keys(shops)
       });
     });
     return out.reverse();
   }
 
+  function isBooking(r) {
+    if (r.ev || r.off) return false;
+    var h = hint(r);
+    return !!h && h.kind === 'book';
+  }
+
+  /** まだどのイベントにも入っていない、予約・チケットの支払い。新しい順 */
+  function bookings() {
+    return Store.recs().filter(function (r) {
+      return isBooking(r) && !Store.skipped('b:' + r.id);
+    }).sort(byDateDesc);
+  }
+
+  var AHEAD = 120;   // 何日前の支払いまでを「このイベントの予約かも」と見るか
+
+  /** イベントの前に払った、予約・チケットらしき明細。期間内のものは候補のほうに出るので除く */
+  function eventAdvance(ev) {
+    if (!ev.from) return [];
+    var since = dayShift(ev.from, -AHEAD);
+    return Store.recs().filter(function (r) {
+      return r.date >= since && r.date < ev.from && isBooking(r);
+    }).sort(byDateDesc).reverse();
+  }
+
   return {
-    suggestions: suggestions,
+    suggestions: suggestions, bookings: bookings, eventAdvance: eventAdvance, hint: hint,
     monthOf: monthOf, needsReview: needsReview, queue: queue, months: months,
     summary: summary, summaryOf: summaryOf, subRows: subRows,
     recsOfMonth: recsOfMonth, title: title, classLabel: classLabel,

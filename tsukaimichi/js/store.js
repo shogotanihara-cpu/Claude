@@ -37,6 +37,42 @@ var Store = (function () {
     { id: 'fun',  name: '娯楽',   color: '#c08a3e' }
   ];
 
+  /* イベントの手がかりにする言葉の初期値。設定で足したり消したりできる。
+       ride  … 新幹線。乗った日に付くことが多いので、その日を「現地にいた日」とみなす
+       book  … 旅行サイト・航空券・チケットサイト。払った日とイベントの日がずれる
+       place … 関西以外の地名。お店の名前に入っていれば、その日は現地にいた
+     地名はカタカナと漢字だけにしてある。カード明細の末尾に付く「（TOKYO）」は
+     お店の本社の場所で、自販機や通販にも付くので手がかりにならない。 */
+  var WORDS = {
+    ride: ['スマートEX', 'スマートイーエツクス', 'EX予約', 'エクスプレス予約', '新幹線', 'シンカンセン'],
+    book: ['楽天トラベル', 'EXPEDIA', 'エクスペディア', 'じゃらん', '一休', 'BOOKING.COM', 'AGODA',
+           'トラベルパートナー', 'ANA国内線', '全日空', 'JAL', '日本航空', 'ピーチアビエーション',
+           'ジェットスター', 'スカイマーク',
+           'ローチケ', 'ローソンチケット', 'イープラス', 'チケットぴあ', 'チケット', 'TICKET',
+           'SPWN', 'ZAIKO', 'パスマーケット', 'LIVEPOCKET'],
+    place: ['東京', 'トウキョウ', '横浜', 'ヨコハマ', '川崎', 'カワサキ', '幕張', 'マクハリ', '千葉',
+            '大宮', 'オオミヤ', '埼玉', 'サイタマ', '渋谷', 'シブヤ', '新宿', 'シンジュク',
+            '池袋', 'イケブクロ', '秋葉原', 'アキハバラ', 'アキバ', '品川', 'シナガワ',
+            '六本木', 'ロッポンギ', '有明', 'アリアケ', 'お台場', '立川', 'タチカワ',
+            '羽田', 'ハネダ', '成田', 'ナリタ', 'JR東日本', 'JRヒガシニホン',
+            '仙台', 'センダイ', '札幌', 'サッポロ', '函館', 'ハコダテ', '北海道', '新潟', 'ニイガタ',
+            '金沢', 'カナザワ', '長野', 'ナガノ', '静岡', 'シズオカ', '名古屋', 'ナゴヤ', '伊勢',
+            '岡山', 'オカヤマ', '広島', 'ヒロシマ', '博多', 'ハカタ', '福岡', 'フクオカ',
+            '熊本', 'クマモト', '那覇', '沖縄', 'オキナワ']
+  };
+
+  function cleanWords(list, fallback) {
+    if (!Array.isArray(list)) return fallback.slice();
+    var seen = {}, out = [];
+    list.forEach(function (w) {
+      w = String(w == null ? '' : w).trim();
+      if (!w || seen[w]) return;
+      seen[w] = true;
+      out.push(w);
+    });
+    return out;
+  }
+
   var state = null;
   var listeners = [];
   var undoStack = [];      // 取り消し用のスナップショット（1件だけ持つ）
@@ -57,7 +93,8 @@ var Store = (function () {
       recs: [],
       events: [],          // { id, name, from, to }
       gone: {},            // 消したザイム明細の指紋 → 件数（再取り込みで復活させない）
-      skip: {},            // 「ちがう」と答えたイベントの提案（"はじまり|おわり"）
+      skip: {},            // 「ちがう」と答えた提案（期間は "はじまり|おわり"、明細は "b:id"）
+      words: { ride: WORDS.ride.slice(), book: WORDS.book.slice(), place: WORDS.place.slice() },
       settings: { view: 'month' }
     };
   }
@@ -158,6 +195,10 @@ var Store = (function () {
     }
     if (s.gone && typeof s.gone === 'object') {
       Object.keys(s.gone).forEach(function (k) { if (s.gone[k] > 0) out.gone[k] = Math.floor(s.gone[k]); });
+    }
+    // words は後から足した項目。持っていない古いデータには初期値を入れる
+    if (s.words && typeof s.words === 'object') {
+      ['ride', 'book', 'place'].forEach(function (k) { out.words[k] = cleanWords(s.words[k], WORDS[k]); });
     }
     if (s.skip && typeof s.skip === 'object') {
       Object.keys(s.skip).forEach(function (k) { if (s.skip[k]) out.skip[k] = 1; });
@@ -648,6 +689,20 @@ var Store = (function () {
 
   function skipped(key) { return !!state.skip[key]; }
 
+  function words() { return state.words; }
+
+  /** 手がかりの言葉を入れ替える。w を省くと初期値に戻す */
+  function setWords(w) {
+    pushUndo();
+    w = w || WORDS;
+    // 中身を書き換えずに丸ごと差し替える（Model が「変わった」と気づけるように）
+    state.words = {
+      ride: cleanWords(w.ride, WORDS.ride), book: cleanWords(w.book, WORDS.book),
+      place: cleanWords(w.place, WORDS.place)
+    };
+    commit();
+  }
+
   /** イベントを消す。入っていた明細は消さず、所属だけ外れる（reindex） */
   function removeEvent(id) {
     pushUndo();
@@ -701,6 +756,7 @@ var Store = (function () {
     moveSub: moveSub, removeSub: removeSub, setMap: setMap,
     addEvent: addEvent, addEventWith: addEventWith, updateEvent: updateEvent, removeEvent: removeEvent,
     isEventHint: isEventHint, skipSuggestion: skipSuggestion, skipped: skipped,
+    words: words, setWords: setWords,
     settings: settings, setSetting: setSetting,
     exportData: exportData, importData: importData, clearAll: clearAll,
     undo: undo, size: function () { return lastSize; }
