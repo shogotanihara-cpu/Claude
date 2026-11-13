@@ -241,5 +241,44 @@ var Cats = (function () {
     });
   }
 
-  return { dot: dot, picker: picker, renderSection: renderSection, openMap: openMap };
+  /* ── 設定画面：イベントの手がかりにする言葉 ── */
+
+  var WORD_GROUPS = [
+    ['ride', '新幹線', 'この言葉がある日は、現地にいた日とみなします。'],
+    ['place', '関西以外の地名', 'お店の名前にこの地名があれば、その日は現地にいたとみなします。明細の末尾の（TOKYO）のような英字は見ません。'],
+    ['book', '旅行サイト・チケットサイト', '払った日とイベントの日がずれるので、「予約・チケットの支払い」として別に並べます。']
+  ];
+
+  /* 1行に1つ。チップを1つずつ足すより、まとめて貼ったり消したりするほうが速い */
+  function openWords() {
+    UI.sheet('イベントの手がかりにする言葉', function (body, close) {
+      body.appendChild(el('p', 'sheet-note',
+        'お店・品目・メモにこの言葉が入っている明細を、イベントの提案の手がかりにします。1行に1つ。' +
+        'ひらがなとカタカナ、全角と半角、小さい「ョ」と大きい「ヨ」は区別しません。'));
+      var words = Store.words();
+      var areas = {};
+      WORD_GROUPS.forEach(function (g) {
+        var a = UI.field(body, g[1], UI.input('area', words[g[0]].join('\n')));
+        a.rows = 6;
+        areas[g[0]] = a;
+        body.appendChild(el('p', 'sheet-note', g[2]));
+      });
+      var row = el('div', 'sheet-actions');
+      row.appendChild(btn('btn btn-ghost', '初期値に戻す', function () {
+        close();
+        Store.setWords(null);
+        UI.undoToast('初期値に戻しました');
+      }));
+      row.appendChild(btn('btn btn-primary', '保存', function () {
+        var next = {};
+        WORD_GROUPS.forEach(function (g) { next[g[0]] = areas[g[0]].value.split('\n'); });
+        close();
+        Store.setWords(next);
+        UI.undoToast('保存しました');
+      }));
+      body.appendChild(row);
+    });
+  }
+
+  return { dot: dot, picker: picker, renderSection: renderSection, openMap: openMap, openWords: openWords };
 })();

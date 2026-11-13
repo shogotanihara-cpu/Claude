@@ -144,6 +144,7 @@ var App = (function () {
     s2.appendChild(el('p', 'sheet-note', '大分類は3つで固定です。名前は変えられます。小分類は自由に足せます。'));
     Cats.renderSection(s2);
     s2.appendChild(btn('btn btn-wide', 'ザイムのカテゴリとの対応を見る', Cats.openMap));
+    s2.appendChild(btn('btn btn-wide', 'イベントの手がかりにする言葉', Cats.openWords));
 
     var s3 = section(host, 'データ');
     s3.appendChild(el('p', 'sheet-note',
