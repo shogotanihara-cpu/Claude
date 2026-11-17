@@ -11,6 +11,7 @@
        ask,                 自動で仮置きしたが、確認してほしい
        off,                 集計に含めない
        ev,                  イベントの id（分類とは別の軸）
+       kind,                イベントの中での区分（宿泊費・交通費など）。手で決めたときだけ入る
        h                    ザイムの元の行の指紋（取り込んだものだけ）
      }
 
@@ -73,6 +74,20 @@ var Store = (function () {
     return out;
   }
 
+  /* イベントの中で使う区分。推し活・生活・娯楽とは別の軸で、月の集計には使わない。
+     明細に入れておくのは手で決めた値だけ。仮置きは Model がその都度計算する
+     （仮置きの決め方を変えたとき、保存済みのデータを直さずに済むように） */
+  var KINDS = [
+    { id: 'stay',  name: '宿泊費',           color: '#7a6bc4' },
+    { id: 'move',  name: '交通費',           color: '#3f8fb0' },
+    { id: 'food',  name: '食費',             color: '#c08a3e' },
+    { id: 'goods', name: 'イベント・グッズ代', color: '#d4628f' },
+    { id: 'oshi',  name: 'その他推し活代',     color: '#b0548a' },
+    { id: 'other', name: 'その他',           color: '#7d8590' }
+  ];
+  var KIND_OK = {};
+  KINDS.forEach(function (k) { KIND_OK[k.id] = true; });
+
   var state = null;
   var listeners = [];
   var undoStack = [];      // 取り消し用のスナップショット（1件だけ持つ）
@@ -104,7 +119,7 @@ var Store = (function () {
   var FIELDS = [
     ['id', 'i'], ['date', 'd'], ['amt', 'a'], ['shop', 's'], ['item', 't'], ['memo', 'm'],
     ['zcat', 'zc'], ['zsub', 'zs'], ['cat', 'c'], ['sub', 'u'],
-    ['ok', 'k'], ['ask', 'q'], ['off', 'x'], ['ev', 'e'], ['h', 'h']
+    ['ok', 'k'], ['ask', 'q'], ['off', 'x'], ['ev', 'e'], ['kind', 'kd'], ['h', 'h']
   ];
   var FLAGS = { ok: true, ask: true, off: true };
 
@@ -276,6 +291,7 @@ var Store = (function () {
     state.recs.forEach(function (r) {
       fix(r);
       if (r.ev && !evOk[r.ev]) r.ev = null;
+      if (r.kind && !KIND_OK[r.kind]) r.kind = null;
       if (!r.cat && r.ok) r.ok = false;     // 分類のない「確定」はありえない
       index[r.id] = r;
     });
@@ -445,7 +461,7 @@ var Store = (function () {
     var r = {
       id: uid('r'), date: c.date, amt: c.amt, shop: c.shop, item: c.item, memo: c.memo,
       zcat: '', zsub: '', cat: null, sub: null, ok: false, ask: true,
-      off: !!f.off, ev: f.ev || null, h: null
+      off: !!f.off, ev: f.ev || null, kind: f.kind || null, h: null
     };
     state.recs.push(r);
     index[r.id] = r;
@@ -470,6 +486,7 @@ var Store = (function () {
     r.date = c.date; r.amt = c.amt; r.shop = c.shop; r.item = c.item; r.memo = c.memo;
     r.off = !!f.off;
     r.ev = f.ev || null;
+    if (f.kind !== undefined) r.kind = f.kind || null;
     var cat = f.cat || null, sub = f.sub || null;
     var touched = (cat !== oldCat || sub !== oldSub);
     if (cat && (touched || wasOk || f.confirm)) decide(r, cat, sub);
@@ -493,6 +510,20 @@ var Store = (function () {
   function setEvent(ids, evId) {
     pushUndo();
     ids.forEach(function (id) { if (index[id]) index[id].ev = evId || null; });
+    commit();
+  }
+
+  /** イベントの中での区分を手で決める。null で仮置きに戻す */
+  function setKind(ids, kind) {
+    pushUndo();
+    ids.forEach(function (id) { if (index[id]) index[id].kind = KIND_OK[kind] ? kind : null; });
+    commit();
+  }
+
+  /** [ [id, 区分], … ] をまとめて決める。取り消しは1回で全部戻る */
+  function setKinds(pairs) {
+    pushUndo();
+    pairs.forEach(function (p) { if (index[p[0]] && KIND_OK[p[1]]) index[p[0]].kind = p[1]; });
     commit();
   }
 
@@ -575,7 +606,7 @@ var Store = (function () {
       var r = {
         id: uid('r'), date: row.date, amt: row.amt, shop: row.shop, item: row.item, memo: row.memo,
         zcat: row.zcat, zsub: row.zsub, cat: null, sub: null, ok: false, ask: false,
-        off: !!row.off, ev: null, h: x.h
+        off: !!row.off, ev: null, kind: null, h: x.h
       };
       var c = classify(r);
       r.cat = c.cat; r.sub = c.sub; r.ask = c.ask;
@@ -750,7 +781,8 @@ var Store = (function () {
     subById: subById, subsOf: subsOf, events: events, eventById: eventById,
     mapping: mapping, classify: classify,
     addRec: addRec, saveRec: saveRec, removeRec: removeRec,
-    setClass: setClass, setEvent: setEvent,
+    setClass: setClass, setEvent: setEvent, setKind: setKind, setKinds: setKinds,
+    KINDS: KINDS, kindById: function (id) { return KINDS.filter(function (k) { return k.id === id; })[0] || null; },
     planImport: planImport, applyImport: applyImport,
     addSub: addSub, renameMajor: renameMajor, updateSub: updateSub,
     moveSub: moveSub, removeSub: removeSub, setMap: setMap,

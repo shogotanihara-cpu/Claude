@@ -266,7 +266,69 @@ var Model = (function () {
     }).sort(byDateDesc).reverse();
   }
 
+  /* ── イベントの中での区分 ─────────────────
+     宿泊費・交通費・食費・イベント・グッズ代・その他推し活代・その他。
+     最後に決めるのは人。ここで出すのは仮置きで、自信のあるものだけ。
+
+       旅行サイト       … 7,000円以下なら交通費（高速バスや片道の航空券）、それより上は宿泊費
+       航空券・新幹線   … 交通費
+       チケットサイト   … イベント・グッズ代
+       ザイムの交通     … 交通費
+       ザイムの食費     … 食費
+       ホロライブ・イベント・レジャー … イベント・グッズ代
+
+     ザイムで「旅行」に入っている旅先の買い物は、食事かお土産かグッズかを
+     お店の名前から決められないので、仮置きしない（未仕分けのまま出す）。
+     「その他推し活代」はイベントと関係ない推し活の分なので、自動では入れない。
+     ───────────────────────────────────────── */
+
+  var TICKET = ['チケット', 'TICKET', 'ローチケ', 'イープラス', 'ぴあ', 'SPWN', 'ZAIKO', 'パスマーケット', 'LIVEPOCKET'].map(fold);
+  var FLIGHT = ['ANA国内線', '全日空', 'JAL', '日本航空', 'ピーチアビエーション', 'ジェットスター', 'スカイマーク'].map(fold);
+  var MOVE = ['鉄道', '電鉄', 'JR', '交通', 'バス', 'タクシー', 'SUICA', 'スイカ', '特急', 'SKYLINER', 'ICOCA', 'PITAPA', '新幹線'].map(fold);
+  var STAY = ['ホテル', '旅館', 'HOTEL', 'INN', 'ゲストハウス', '民宿'].map(fold);
+  var STAY_LINE = 7000;   // 旅行サイトの支払いを、交通費と宿泊費に分ける目安
+
+  function kindGuess(r) {
+    var text = fold(r.shop + ' ' + r.item + ' ' + r.memo);
+    var h = hint(r);
+    if (h && h.kind === 'book') {
+      if (hasAny(text, TICKET)) return 'goods';
+      if (hasAny(text, FLIGHT)) return 'move';
+      return Math.abs(r.amt) <= STAY_LINE ? 'move' : 'stay';
+    }
+    if (h && h.why === '新幹線') return 'move';
+    if (r.zcat === '交通' || hasAny(text, MOVE)) return 'move';
+    if (hasAny(text, STAY)) return 'stay';
+    if (r.zcat === '食費') return 'food';
+    if (r.zsub === 'ホロライブ' || r.zsub === 'イベント・レジャー') return 'goods';
+    return null;
+  }
+
+  /** { id（null なら未仕分け）, auto（仮置きか） } */
+  function kindOf(r) {
+    if (r.kind) return { id: r.kind, auto: false };
+    var g = kindGuess(r);
+    return { id: g, auto: !!g };
+  }
+
+  /** 区分ごとの合計。rows は Store.KINDS の順。none は未仕分け */
+  function kindSummary(list) {
+    var by = {};
+    Store.KINDS.forEach(function (k) { by[k.id] = { id: k.id, name: k.name, color: k.color, sum: 0, count: 0, auto: 0 }; });
+    var none = { sum: 0, count: 0 };
+    list.forEach(function (r) {
+      if (r.off) return;
+      var k = kindOf(r);
+      if (!k.id) { none.sum += r.amt; none.count++; return; }
+      by[k.id].sum += r.amt;
+      by[k.id].count++;
+      if (k.auto) by[k.id].auto++;
+    });
+    return { rows: Store.KINDS.map(function (k) { return by[k.id]; }), none: none };
+  }
+
   return {
+    kindGuess: kindGuess, kindOf: kindOf, kindSummary: kindSummary,
     suggestions: suggestions, bookings: bookings, eventAdvance: eventAdvance, hint: hint,
     monthOf: monthOf, needsReview: needsReview, queue: queue, months: months,
     summary: summary, summaryOf: summaryOf, subRows: subRows,
