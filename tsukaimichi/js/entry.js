@@ -29,6 +29,9 @@ var Entry = (function () {
     var sub = el('div', 'row-sub');
     var bits = [];
     if (opts.showDate) bits.push(UI.fmtDate(r.date));
+    // イベントの中では、区分を先に出す。分類よりもそちらを見に来ているので
+    var kd = opts.kind ? Model.kindOf(r) : null;
+    if (kd) bits.push(kd.id ? Store.kindById(kd.id).name + (kd.auto ? '（仮）' : '') : '未仕分け');
     bits.push(Model.classLabel(r));
     if (r.off) bits.push('集計外');
     var memo = (r.memo || r.item || '').split('\n')[0];
@@ -115,6 +118,36 @@ var Entry = (function () {
         UI.field(body, 'イベント', ev);
       }
 
+      // 区分はイベントに入っているときだけ意味があるので、イベントを選んだときだけ出す
+      var kind = r ? (r.kind || null) : null;
+      var kindBox = el('div');
+      body.appendChild(kindBox);
+      function drawKind() {
+        UI.clear(kindBox);
+        var evId = ev ? ev.value : (preset.ev || '');
+        if (!evId) return;
+        kindBox.appendChild(el('div', 'field-label', 'イベントの中での区分'));
+        var chips = el('div', 'chips');
+        var guess = r ? Model.kindGuess(r) : null;
+        Store.KINDS.forEach(function (k) {
+          var on = kind === k.id;
+          var c = btn('chip chip-cat' + (on ? ' on' : '') + (!kind && guess === k.id ? ' chip-auto' : ''), '', function () {
+            kind = on ? null : k.id;
+            drawKind();
+          });
+          c.style.setProperty('--c', k.color);
+          c.appendChild(Cats.dot(k.color));
+          c.appendChild(el('span', null, k.name));
+          chips.appendChild(c);
+        });
+        kindBox.appendChild(chips);
+        if (!kind) kindBox.appendChild(el('p', 'sheet-note', guess
+          ? '破線が仮置きです。選ばなければ仮置きのまま集計します。'
+          : 'まだ決まっていません。'));
+      }
+      drawKind();
+      if (ev) ev.addEventListener('change', drawKind);
+
       var sw = el('label', 'switch');
       var off = el('input');
       off.type = 'checkbox';
@@ -138,7 +171,7 @@ var Entry = (function () {
         var f = {
           date: date.value, amt: n, shop: shop.value, item: item.value, memo: memo.value,
           cat: value.cat, sub: value.sub, ev: ev ? ev.value : (preset.ev || null),
-          off: off.checked, confirm: picked
+          off: off.checked, confirm: picked, kind: kind
         };
         close();
         if (isNew) {

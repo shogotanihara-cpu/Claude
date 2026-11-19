@@ -180,15 +180,12 @@ var EventsView = (function () {
     hero.appendChild(el('div', 'hero-sub', UI.fmtRange(ev.from, ev.to) + ' ・ ' + s.count + ' 件'));
     host.appendChild(hero);
 
-    var cats = el('div', 'rows');
-    Store.majors().forEach(function (m) {
-      var row = el('div', 'row');
-      row.appendChild(Cats.dot(m.color));
-      row.appendChild(el('div', 'row-main', m.name));
-      row.appendChild(el('span', 'amt', UI.yen(s.cats[m.id].sum)));
-      cats.appendChild(row);
-    });
-    host.appendChild(cats);
+    host.appendChild(kindTable(members));
+
+    // 推し活・生活・娯楽の内訳も、1行に縮めて残す。区分とは別の見方なので消さない
+    host.appendChild(el('p', 'sheet-note majors-line', Store.majors().map(function (m) {
+      return m.name + ' ' + UI.yen(s.cats[m.id].sum);
+    }).join(' ・ ')));
 
     var tools = el('div', 'sheet-actions tools');
     tools.appendChild(btn('btn', '名前・期間を変える', function () { form(ev); }));
@@ -197,13 +194,15 @@ var EventsView = (function () {
     }));
     host.appendChild(tools);
 
+    kindSection(host, members);
+
     var sec = group(host, '入っている明細', members.length + ' 件');
     if (!members.length) {
       sec.appendChild(el('p', 'sheet-note', 'まだ入っていません。下の候補から選ぶか、明細のシートでこのイベントを選びます。'));
     } else {
       var rows = el('div', 'rows');
       members.forEach(function (r) {
-        rows.appendChild(Entry.row(r, { showDate: true, action: {
+        rows.appendChild(Entry.row(r, { showDate: true, kind: true, action: {
           label: '外す',
           run: function (x) { Store.setEvent([x.id], null); UI.undoToast('イベントから外しました'); }
         } }));
@@ -247,6 +246,91 @@ var EventsView = (function () {
       });
       sec3.appendChild(rows3);
     }
+  }
+
+  /* ── 区分 ─────────────────────────────── */
+
+  /* 区分ごとの合計。仮置きが混じる区分には破線の「自動」を付ける */
+  function kindTable(members) {
+    var ks = Model.kindSummary(members);
+    var rows = el('div', 'rows');
+    ks.rows.forEach(function (k) {
+      if (!k.count) return;
+      var row = el('div', 'row');
+      row.appendChild(Cats.dot(k.color));
+      var main = el('div', 'row-main');
+      main.appendChild(el('div', null, k.name));
+      if (k.auto) main.appendChild(el('div', 'row-sub', 'うち ' + k.auto + ' 件は仮置き'));
+      row.appendChild(main);
+      if (k.auto) row.appendChild(el('span', 'badge badge-auto', '自動'));
+      row.appendChild(el('span', 'amt', UI.yen(k.sum)));
+      rows.appendChild(row);
+    });
+    if (ks.none.count) {
+      var row = el('div', 'row row-none');
+      row.appendChild(Cats.dot('var(--line)'));
+      var main = el('div', 'row-main');
+      main.appendChild(el('div', null, '未仕分け'));
+      main.appendChild(el('div', 'row-sub', ks.none.count + ' 件'));
+      row.appendChild(main);
+      row.appendChild(el('span', 'amt', UI.yen(ks.none.sum)));
+      rows.appendChild(row);
+    }
+    if (!rows.firstChild) rows.appendChild(el('div', 'row row-sub', 'まだ明細が入っていません'));
+    return rows;
+  }
+
+  var KIND_SHOW = 20;   // 一度に出す数。答えると続きが出る
+
+  /* まだ手で区分を決めていない明細を、1件ずつ6つのボタンで決める。
+     仮置きのあるものは、その区分のボタンを破線で示す */
+  function kindSection(host, members) {
+    var todo = members.filter(function (r) { return !r.kind && !r.off; });
+    if (!todo.length) return;
+    var sec = group(host, '区分を決める', todo.length + ' 件');
+    var guessed = todo.filter(function (r) { return Model.kindGuess(r); });
+    if (guessed.length) {
+      sec.appendChild(btn('btn btn-wide btn-all', '仮置きのまま ' + guessed.length + ' 件を決める', function () {
+        // 1回の取り消しで全部戻るよう、まとめて決める
+        Store.setKinds(guessed.map(function (r) { return [r.id, Model.kindGuess(r)]; }));
+        UI.undoToast(guessed.length + ' 件の区分を決めました');
+      }));
+    }
+    todo.slice(0, KIND_SHOW).forEach(function (r) { sec.appendChild(kindCard(r)); });
+    if (todo.length > KIND_SHOW) {
+      sec.appendChild(el('p', 'sheet-note center', 'ほか ' + (todo.length - KIND_SHOW) + ' 件。上から決めると続きが出ます。'));
+    }
+  }
+
+  function kindCard(r) {
+    var c = el('div', 'qcard');
+    var top = el('div', 'qcard-top');
+    var main = el('div', 'row-main');
+    main.appendChild(el('div', 'row-title', Model.title(r)));
+    var bits = [UI.fmtDate(r.date)];
+    if (r.zcat) bits.push('ザイム: ' + r.zcat + (r.zsub ? '／' + r.zsub : ''));
+    var memo = (r.memo || r.item || '').split('\n')[0];
+    if (memo && memo !== Model.title(r)) bits.push(memo);
+    main.appendChild(el('div', 'row-sub', bits.join(' ・ ')));
+    main.addEventListener('click', function () { Entry.open(r.id); });
+    top.appendChild(main);
+    top.appendChild(el('span', 'amt amt-big' + (r.amt < 0 ? ' amt-minus' : ''), UI.yen(r.amt)));
+    c.appendChild(top);
+    c.appendChild(kindButtons(r));
+    return c;
+  }
+
+  function kindButtons(r) {
+    var guess = Model.kindGuess(r);
+    var row = el('div', 'qbtns qbtns-6');
+    Store.KINDS.forEach(function (k) {
+      var b = btn('qbtn' + (guess === k.id ? ' qbtn-auto' : ''), k.name, function () {
+        Store.setKind([r.id], k.id);
+      });
+      b.style.setProperty('--c', k.color);
+      row.appendChild(b);
+    });
+    return row;
   }
 
   function group(host, name, count) {

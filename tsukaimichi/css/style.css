@@ -564,6 +564,12 @@ button { cursor: pointer; }
 /* 3つ並べるときは文字が長いので、少し詰めて1行に収める */
 .qbtns-3 .qbtn { font-size: 12px; padding: 8px 2px; white-space: nowrap; }
 .qbtn:disabled { opacity: .4; }
+/* 区分は6つあるので、3つずつ2段に並べる */
+.qbtns-6 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.qbtns-6 .qbtn { min-height: 38px; font-size: 12px; padding: 6px 2px; white-space: nowrap; }
+.chip-auto { border-style: dashed; border-color: var(--c, var(--muted)); }
+.majors-line { margin: 8px 4px 0; text-align: center; }
+.row-none { color: var(--muted); }
 .qbtn-auto { border: 2px dashed var(--c, var(--accent)); font-weight: 700; }
 
 /* ── 分類を選ぶチップ ─────────────────── */
